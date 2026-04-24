@@ -9,4 +9,12 @@ export default {
   async enterClassroom(scheduleId) {
     return await http.post2(`/api/teacher/home/enter-classroom/${scheduleId}`);
   },
+  // 下课
+  async exitClassroom(scheduleId) {
+    return await http.post2(`/api/teacher/home/exit-classroom/${scheduleId}`);
+  },
+  // 获取会议实时信息
+  async realtimeInfo(scheduleId) {
+    return await http.get(`/api/teacher/meeting/control/${scheduleId}/realtime-info`);
+  },
 };

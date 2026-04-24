@@ -4,9 +4,8 @@
       <top-nav
         title="兴图教学助手"
         :show-logout="true"
-        :loading="loading"
         @logout="handleLogout"
-        @refresh="handleRefresh"
+        
       ></top-nav>
     </template>
     
@@ -18,7 +17,7 @@
     </template>
     
     <div class="main-content">
-      <today-classes v-if="activeTab === 'today'" ref="todayClassesRef"></today-classes>
+      <today-classes v-if="activeTab === 'today'" ref="todayClassesRef" :loading="loading" @refresh="handleRefresh"></today-classes>
       <profile v-if="activeTab === 'profile'"></profile>
     </div>
   </page-layout>

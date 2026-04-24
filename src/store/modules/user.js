@@ -4,7 +4,19 @@ export default {
   namespaced: true,
   state: {
     token: localStorage.getItem('token') || '',
-    userInfo: JSON.parse(localStorage.getItem('userInfo') || 'null'),
+    userInfo: (() => {
+      const userInfoStr = localStorage.getItem('userInfo');
+      if (!userInfoStr || userInfoStr === 'undefined' || userInfoStr === 'null') {
+        return null;
+      }
+      try {
+        return JSON.parse(userInfoStr);
+      } catch (error) {
+        console.error('解析userInfo失败:', error);
+        localStorage.removeItem('userInfo');
+        return null;
+      }
+    })(),
     isLoggedIn: !!localStorage.getItem('token')
   },
   mutations: {

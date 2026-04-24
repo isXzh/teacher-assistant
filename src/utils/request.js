@@ -190,7 +190,7 @@ service.interceptors.response.use(
         sessionStorage.removeItem("accessToken");
         sessionStorage.removeItem("refreshToken");
 
-        Message.error("登录已过期，请重新登录");
+        // Message.error("登录已过期，请重新登录");
         router.push("/login");
 
         return Promise.reject(refreshError);

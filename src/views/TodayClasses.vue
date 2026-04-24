@@ -3,6 +3,8 @@
     <!-- 头部日期区域 -->
     <div class="header">
       <h2 class="date-title">{{ currentDate }} {{ currentWeekDay }}</h2>
+      <div class="top-btn">
+<el-button round :loading="loading" @click="handleRefresh"> 刷新 </el-button>
       <button class="calendar-button" @click="handleCalendarClick">
         <svg class="calendar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
           <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-width="2"></rect>
@@ -11,6 +13,8 @@
           <line x1="3" y1="10" x2="21" y2="10" stroke-width="2"></line>
         </svg>
       </button>
+      </div>
+      
     </div>
 
     <!-- 教师端-会控SSE推送Controller
@@ -97,10 +101,20 @@ eventSource.addEventListener('connect', (event) => {
         return getCurrentWeekDay();
       },
     },
+    props:{
+      loading: {
+        type: Boolean,
+        default: false,
+      }
+    },
+    
     async created() {
       await this.fetchCourses();
     },
     methods: {
+      handleRefresh() {
+        this.$emit('refresh');
+      },
       async fetchCourses() {
         try {
           this.courses = await this.$store.dispatch('course/fetchTodayCourses');
@@ -360,5 +374,10 @@ eventSource.addEventListener('connect', (event) => {
     font-size: 16px;
     color: #999999;
     margin: 0;
+  }
+  .top-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 </style>

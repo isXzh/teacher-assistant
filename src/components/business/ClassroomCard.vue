@@ -122,6 +122,7 @@
       
       <div class="action-buttons">
         <button
+          v-if="!classroom.isRaisingHand"
           class="action-button mic-action"
           :class="getMicActionClass()"
           :disabled="isOffline"

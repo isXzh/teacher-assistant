@@ -12,7 +12,16 @@ export function setToken(token) {
 
 export function getUserInfo() {
   const userInfo = localStorage.getItem('userInfo')
-  return userInfo ? JSON.parse(userInfo) : null
+  if (!userInfo || userInfo === 'undefined' || userInfo === 'null') {
+    return null
+  }
+  try {
+    return JSON.parse(userInfo)
+  } catch (error) {
+    console.error('解析userInfo失败:', error)
+    localStorage.removeItem('userInfo')
+    return null
+  }
 }
 
 export function setUserInfo(userInfo) {

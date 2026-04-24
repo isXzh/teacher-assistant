@@ -10,7 +10,7 @@
       <div class="sidebar">
         <div class="device-status-card">
           <div class="card-header">
-            <h2 class="card-title">主讲教室保障箱</h2>
+            <h2 class="card-title">{{ mainClassroomName || '主讲教室保障箱' }}</h2>
             <button class="refresh-button">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -28,6 +28,13 @@
               <div class="status-value online">
                 <div class="status-dot"></div>
                 <span class="status-text">在线</span>
+              </div>
+            </div>
+            <div class="status-item">
+              <span class="status-label">实时连接</span>
+              <div :class="['status-value', sseConnected ? 'online' : 'offline']">
+                <div class="status-dot"></div>
+                <span class="status-text">{{ sseConnected ? '正常' : '断开' }}</span>
               </div>
             </div>
             <div class="status-item">
@@ -155,6 +162,9 @@
 <script>
   import TopNav from '@/components/layout/TopNav.vue';
   import ClassroomCard from '@/components/business/ClassroomCard.vue';
+  import homeApi from '@/api/home';
+  import meetingControlApi from '@/api/meetingControl';
+  import { EventSourcePolyfill } from 'event-source-polyfill';
 
   export default {
     name: 'InteractionPanel',
@@ -164,109 +174,646 @@
     },
     data() {
       return {
-        classrooms: [
-          {
-            id: 1,
-            name: '辅讲教室A',
-            teacher: '李老师',
-            boxStatus: '在线',
-            clientStatus: '已连接',
-            micEnabled: true,
-            isInteracting: false,
-            isRaisingHand: true,
-          },
-          {
-            id: 2,
-            name: '辅讲教室B',
-            teacher: '王老师',
-            boxStatus: '使用中',
-            clientStatus: '已连接',
-            micEnabled: false,
-            isInteracting: false,
-            isRaisingHand: false,
-          },
-          {
-            id: 3,
-            name: '辅讲教室C',
-            teacher: '赵老师',
-            boxStatus: '在线',
-            clientStatus: '已连接',
-            micEnabled: true,
-            isInteracting: false,
-            isRaisingHand: false,
-          },
-          {
-            id: 4,
-            name: '辅讲教室D',
-            teacher: '刘老师',
-            boxStatus: '离线',
-            clientStatus: '断开',
-            micEnabled: false,
-            isInteracting: false,
-            isRaisingHand: false,
-          },
-        ],
+        classrooms: [],
         showEndClassDialog: false,
+        scheduleId: null,
+        sseClient: null,
+        messages: [],
+        mainClassroomPhone: null,
+        mainClassroomName: null,
+        subscriberInPics: [],
+        sseConnected: false,
+        reconnectAttempts: 0,
+        maxReconnectAttempts: 10,
+        reconnectInterval: 3000,
+        heartbeatTimer: null,
+        heartbeatInterval: 30000
       };
     },
+    async created() {
+      this.scheduleId = this.$route.params.courseId;
+      await this.fetchMainClassroomPhone();
+      await this.fetchRealtimeInfo();
+      const savedSubscriberInPics = sessionStorage.getItem('subscriberInPics');
+      if (savedSubscriberInPics) {
+        try {
+          this.subscriberInPics = JSON.parse(savedSubscriberInPics);
+        } catch (error) {
+          console.error('恢复subscriberInPics失败:', error);
+        }
+      }
+    },
+    mounted() {
+      this.initSSE();
+    },
+  beforeDestroy() {
+      this.closeSSE();
+      this.stopHeartbeat();
+      if (this.subscriberInPics && this.subscriberInPics.length > 0) {
+        sessionStorage.setItem('subscriberInPics', JSON.stringify(this.subscriberInPics));
+      }
+    },
     methods: {
+      initSSE() {
+        const token = sessionStorage.getItem('accessToken');
+
+        if (!token) {
+          console.error('未找到访问令牌，无法建立SSE连接');
+          this.$message.error('未找到访问令牌，请重新登录');
+          return;
+        }
+
+        this.closeSSE();
+
+        this.sseClient = new EventSourcePolyfill(
+          `${window.businessURL}/api/teacher/meeting/control/${this.scheduleId}/sse`,
+          {
+            headers: {
+              token: `Bearer ${token}`
+            },
+            withCredentials: false
+          }
+        );
+
+        this.sseClient.onopen = () => {
+          console.log('SSE连接已建立');
+          this.sseConnected = true;
+          this.reconnectAttempts = 0;
+          this.startHeartbeat();
+        };
+
+        this.sseClient.onmessage = (event) => {
+          this.handleMessage(event);
+        };
+
+        this.sseClient.addEventListener('participants', (event) => {
+          this.handleParticipants(event);
+        });
+        this.sseClient.addEventListener('confDynamicInfo', (event) => {
+          const data = JSON.parse(event.data);
+          console.log('confDynamicInfo update===============:', data);
+          if (data.state === 'Destroyed') {
+            this.subscriberInPics = [];
+            sessionStorage.removeItem('subscriberInPics');
+            console.log('会议已销毁，已清空subscriberInPics');
+          }
+        });
+
+        this.sseClient.onerror = (error) => {
+          this.handleSSEError(error);
+        };
+      },
+
+      handleMessage(event) {
+        try {
+          const data = JSON.parse(event.data);
+          this.messages.push(data);
+          console.log('message', data);
+        } catch (error) {
+          console.error('解析SSE消息失败:', error);
+        }
+      },
+
+      handleParticipants(event) {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('participants update===============:', data);
+
+          if (Array.isArray(data)) {
+            data.forEach(participant => {
+              const pid = participant.pid;
+              const pinfoMap = participant.pinfoMap || {};
+              const handState = pinfoMap.HAND;
+              const tel = pinfoMap.TEL;
+              const mode = participant.mode;
+
+              if (tel) {
+                const classroom = this.classrooms.find(c => c.phone === tel);
+                if (classroom) {
+                  if (handState === '1') {
+                    if (classroom.isInteracting) {
+                      meetingControlApi.setHandRaise(
+                        this.scheduleId,
+                        pid,
+                        { handsState: 0 }
+                      ).catch(error => {
+                        console.error('自动放下手失败:', error);
+                      });
+                    } else {
+                      this.$set(classroom, 'isRaisingHand', true);
+                      this.$set(classroom, 'pid', pid);
+                    }
+                  } else {
+                    this.$set(classroom, 'isRaisingHand', false);
+                  }
+                }
+              }
+
+              if (mode === 0 || mode === 1) {
+                this.fetchRealtimeInfo();
+              }
+            });
+          }
+        } catch (error) {
+          console.error('解析参与者数据失败:', error);
+        }
+      },
+
+      handleSSEError(error) {
+        console.error('SSE连接错误:', error);
+        this.sseConnected = false;
+        this.stopHeartbeat();
+
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          const delay = this.reconnectInterval * Math.min(this.reconnectAttempts, 5);
+          console.log(`SSE连接断开，${delay / 1000}秒后尝试第${this.reconnectAttempts}次重连...`);
+          
+          setTimeout(() => {
+            this.initSSE();
+          }, delay);
+        } else {
+          console.error('SSE连接重连次数已达上限，停止重连');
+          this.$message.warning('实时连接已断开，请刷新页面重试');
+        }
+      },
+
+      startHeartbeat() {
+        this.stopHeartbeat();
+        this.heartbeatTimer = setInterval(() => {
+          if (this.sseClient && this.sseClient.readyState === 1) {
+            console.log('SSE心跳检测: 连接正常');
+          } else {
+            console.warn('SSE心跳检测: 连接异常，尝试重连');
+            this.stopHeartbeat();
+            this.handleSSEError(new Error('心跳检测失败'));
+          }
+        }, this.heartbeatInterval);
+      },
+
+      stopHeartbeat() {
+        if (this.heartbeatTimer) {
+          clearInterval(this.heartbeatTimer);
+          this.heartbeatTimer = null;
+        }
+      },
+
+      closeSSE() {
+        this.stopHeartbeat();
+        if (this.sseClient) {
+          this.sseClient.close();
+          this.sseClient = null;
+        }
+        this.sseConnected = false;
+      },
+
+      getImageType(count) {
+        const imageTypes = {
+          1: 'Single',
+          2: 'Two',
+          3: 'Three',
+          4: 'Four',
+          5: 'Five',
+          6: 'Six',
+          7: 'Seven',
+          8: 'Eight',
+          9: 'Nine'
+        };
+        return imageTypes[count] || 'Single';
+      },
+      async fetchMainClassroomPhone() {
+        try {
+          const response = await homeApi.getTodayCoures();
+          if (response.code === 200 && response.data) {
+            const todayCourses = response.data;
+            const currentCourse = todayCourses.find(course => course.id === parseInt(this.scheduleId));
+            if (currentCourse) {
+              this.mainClassroomPhone = currentCourse.phone;
+            }
+          }
+        } catch (error) {
+          console.error('获取今日课程失败:', error);
+        }
+      },
+      async fetchRealtimeInfo() {
+        try {
+          const response = await homeApi.realtimeInfo(this.scheduleId);
+          console.log('realtimeInfo', response);
+          if (response.code == 200 && response.data) {
+            const attendees = response.data.attendees || [];
+            const participants = response.data.participants || [];
+            console.log('attendees:', attendees);
+            console.log('participants:', participants);
+            this.processClassrooms(attendees, participants);
+          }
+        } catch (error) {
+          console.error('获取会议实时信息失败:', error);
+          this.$message.error('获取会议实时信息失败');
+        }
+      },
+      processClassrooms(attendees, participants) {
+        const attendeeList = attendees || [];
+        const participantList = participants || [];
+        
+        if (this.mainClassroomPhone) {
+          const mainClassroom = attendeeList.find(attendee => attendee.phone === this.mainClassroomPhone);
+          if (mainClassroom) {
+            this.mainClassroomName = mainClassroom.name;
+            console.log('主讲教室name:', this.mainClassroomName);
+          }
+        }
+        
+        const participantPhones = participantList.map(p => p.phone);
+        
+        const filteredAttendees = this.mainClassroomPhone 
+          ? attendeeList.filter(attendee => attendee.phone !== this.mainClassroomPhone)
+          : attendeeList;
+        
+        const interactingPhones = this.subscriberInPics.length > 1 
+          ? this.subscriberInPics.slice(1).map(item => item.subscriber[0])
+          : [];
+        
+        this.classrooms = filteredAttendees.map((attendee, index) => {
+          const isOnline = participantPhones.includes(attendee.phone);
+          const participant = participantList.find(p => p.phone === attendee.phone);
+          const existingClassroom = this.classrooms.find(c => c.phone === attendee.phone);
+          
+          const isInteracting = existingClassroom ? existingClassroom.isInteracting : false;
+          const hand = participant ? participant.hand : (existingClassroom ? existingClassroom.hand : null);
+          const mute = participant ? participant.mute : (existingClassroom ? existingClassroom.mute : null);
+          
+          return {
+            id: index + 1,
+            name: attendee.name,
+            teacher: attendee.name,
+            boxStatus: isOnline ? '在线' : '离线',
+            clientStatus: isOnline ? '已连接' : '断开',
+            micEnabled: mute === 0 ? true : false,
+            isInteracting: isInteracting,
+            isRaisingHand: hand === 1 ? true : false,
+            phone: attendee.phone,
+            accountID: attendee.accountID,
+            userUUID: attendee.userUUID,
+            pid: participant ? participant.pid : existingClassroom ? existingClassroom.pid : null,
+            mute: mute,
+            hand: hand
+          };
+        });
+
+        participantList.forEach(participant => {
+          const classroom = this.classrooms.find(c => c.phone === participant.phone);
+          if (classroom) {
+            this.$set(classroom, 'isInteracting', interactingPhones.includes(participant.phone));
+            this.$set(classroom, 'isRaisingHand', participant.hand === 1);
+            this.$set(classroom, 'hand', participant.hand);
+            this.$set(classroom, 'mute', participant.mute);
+            this.$set(classroom, 'micEnabled', participant.mute === 0);
+          }
+        });
+        console.log('interactingPhones======',interactingPhones);
+        
+      },
       handleBack() {
         this.$router.push('/main');
       },
       handleEndClass() {
         this.showEndClassDialog = true;
       },
-      confirmEndClass() {
-        this.$message.success('下课成功');
-        this.showEndClassDialog = false;
-        setTimeout(() => {
-          this.$router.push('/main');
-        }, 1000);
-      },
-      handleToggleMic(classroomId) {
-        const classroom = this.classrooms.find(c => c.id === classroomId);
-        if (this.isClassroomOffline(classroom)) {
-          this.$message.error('设备离线，无法操作');
-          return;
-        }
-        classroom.micEnabled = !classroom.micEnabled;
-        this.$message.success(classroom.micEnabled ? '已开麦' : '已禁麦');
-      },
-      handleToggleInteraction(classroomId) {
-        const classroom = this.classrooms.find(c => c.id === classroomId);
-        if (this.isClassroomOffline(classroom)) {
-          this.$message.error('设备离线，无法操作');
-          return;
-        }
-        classroom.isInteracting = !classroom.isInteracting;
-        classroom.isRaisingHand = false;
-        this.$message.success(classroom.isInteracting ? '已开始互动' : '已结束互动');
-      },
-      handleApproveInteraction(classroomId) {
-        const classroom = this.classrooms.find(c => c.id === classroomId);
-        classroom.isInteracting = true;
-        classroom.isRaisingHand = false;
-        this.$message.success('已同意互动申请');
-      },
-      handleIgnoreRaiseHand(classroomId) {
-        const classroom = this.classrooms.find(c => c.id === classroomId);
-        classroom.isRaisingHand = false;
-        this.$message.info('已忽略举手申请');
-      },
-      handleMuteAll() {
-        this.classrooms.forEach(classroom => {
-          if (!this.isClassroomOffline(classroom)) {
-            classroom.micEnabled = false;
+      async confirmEndClass() {
+        try {
+          const response = await homeApi.exitClassroom(this.scheduleId);
+          if (response.code === 200 && response.data) {
+            this.subscriberInPics = [];
+            sessionStorage.removeItem('subscriberInPics');
+            this.$message.success('下课成功');
+            this.showEndClassDialog = false;
+            setTimeout(() => {
+              this.$router.push('/main');
+            }, 1000);
+          } else {
+            this.$message.error(response.message || '下课失败');
           }
-        });
-        this.$message.success('已全员禁麦');
+        } catch (error) {
+          console.error('下课操作失败:', error);
+          this.$message.error('下课操作失败');
+        }
       },
-      handleEndAllInteractions() {
-        this.classrooms.forEach(classroom => {
-          classroom.isInteracting = false;
-          classroom.isRaisingHand = false;
-        });
-        this.$message.success('已结束所有互动');
+      async handleToggleMic(classroomId) {
+        const classroom = this.classrooms.find(c => c.id === classroomId);
+        if (this.isClassroomOffline(classroom)) {
+          this.$message.error('设备离线，无法操作');
+          return;
+        }
+        if (!classroom.pid) {
+          this.$message.error('未找到与会人ID，无法操作');
+          return;
+        }
+        try {
+          const isMute = classroom.micEnabled ? 1 : 0;
+          const response = await meetingControlApi.muteParticipant(
+            this.scheduleId,
+            classroom.pid,
+            { isMute }
+          );
+          if (response.success && response.data) {
+            this.$set(classroom, 'micEnabled', !classroom.micEnabled);
+            this.$set(classroom, 'mute', isMute);
+            this.$message.success(classroom.micEnabled ? '已开麦' : '已禁麦');
+          } else {
+            this.$message.error(response.message || '操作失败');
+          }
+        } catch (error) {
+          console.error('禁麦/开麦操作失败:', error);
+          this.$message.error('操作失败');
+        }
+      },
+      async handleToggleInteraction(classroomId) {
+        const classroom = this.classrooms.find(c => c.id === classroomId);
+        if (!classroom) {
+          this.$message.error('未找到教室信息');
+          return;
+        }
+
+        if (this.isClassroomOffline(classroom)) {
+          this.$message.error('设备离线，无法操作');
+          return;
+        }
+
+        if (classroom.isInteracting) {
+          await this.handleEndInteraction(classroom);
+        } else {
+          await this.handleStartInteraction(classroom);
+        }
+      },
+      async executeInteraction(classroom, actionType = 'start') {
+        if (!classroom.pid) {
+          this.$message.error('未找到与会人ID，无法操作');
+          return false;
+        }
+
+        try {
+          const { scheduleId, subscriberInPics, mainClassroomPhone } = this;
+
+          if (classroom.isRaisingHand) {
+            const setHandRaiseResponse = await meetingControlApi.setHandRaise(
+              scheduleId,
+              classroom.pid,
+              { handsState: 0 }
+            );
+
+            if (!setHandRaiseResponse.success || !setHandRaiseResponse.data) {
+              throw new Error(setHandRaiseResponse.message || '设置举手状态失败');
+            }
+          }
+
+          const newSubscriberInPics = [
+            {
+              index: 1,
+              subscriber: [mainClassroomPhone],
+              isAssistStream: 0
+            }
+          ];
+
+          let currentIndex = 2;
+          subscriberInPics.forEach(item => {
+            newSubscriberInPics.push({
+              index: currentIndex,
+              subscriber: item.subscriber,
+              isAssistStream: 0
+            });
+            currentIndex++;
+          });
+
+          newSubscriberInPics.push({
+            index: currentIndex,
+            subscriber: [classroom.phone],
+            isAssistStream: 0
+          });
+
+          const setCustomPictureResponse = await meetingControlApi.setCustomPicture(
+            scheduleId,
+            {
+              manualSet: 1,
+              multiPicSaveOnly: false,
+              imageType: this.getImageType(newSubscriberInPics.length),
+              subscriberInPics: newSubscriberInPics
+            }
+          );
+
+          if (!setCustomPictureResponse.success || !setCustomPictureResponse.data) {
+            throw new Error(setCustomPictureResponse.message || '设置自定义画面失败');
+          }
+
+          const muteParticipantResponse = await meetingControlApi.muteParticipant(
+            scheduleId,
+            classroom.pid,
+            { isMute: 0 }
+          );
+
+          if (!muteParticipantResponse.success || !muteParticipantResponse.data) {
+            throw new Error(muteParticipantResponse.message || '禁麦操作失败');
+          }
+
+          this.subscriberInPics = newSubscriberInPics;
+          this.$set(classroom, 'isInteracting', true);
+          this.$set(classroom, 'isRaisingHand', false);
+          this.$set(classroom, 'micEnabled', true);
+          this.$set(classroom, 'mute', 0);
+
+          return true;
+        } catch (error) {
+          console.error(`${actionType === 'start' ? '开始互动' : '同意互动'}失败:`, error);
+          this.$message.error(error.message || `${actionType === 'start' ? '开始互动' : '同意互动'}失败`);
+          return false;
+        }
+      },
+
+      async handleStartInteraction(classroom) {
+        if (this.isClassroomOffline(classroom)) {
+          this.$message.error('设备离线，无法操作');
+          return;
+        }
+
+        const success = await this.executeInteraction(classroom, 'start');
+        if (success) {
+          this.$message.success('已开始互动');
+        }
+      },
+      async handleEndInteraction(classroom) {
+        if (!classroom.pid) {
+          this.$message.error('未找到与会人ID，无法操作');
+          return;
+        }
+
+        try {
+          const { scheduleId, subscriberInPics, mainClassroomPhone } = this;
+
+          const updatedSubscriberInPics = subscriberInPics.filter(item => item.subscriber[0] !== classroom.phone);
+
+          const newSubscriberInPics = [
+            {
+              index: 1,
+              subscriber: [mainClassroomPhone],
+              isAssistStream: 0
+            }
+          ];
+
+          let currentIndex = 2;
+          updatedSubscriberInPics.forEach(item => {
+            newSubscriberInPics.push({
+              index: currentIndex,
+              subscriber: item.subscriber,
+              isAssistStream: 0
+            });
+            currentIndex++;
+          });
+
+          const setCustomPictureResponse = await meetingControlApi.setCustomPicture(
+            scheduleId,
+            {
+              manualSet: 1,
+              multiPicSaveOnly: false,
+              imageType: this.getImageType(newSubscriberInPics.length),
+              subscriberInPics: newSubscriberInPics
+            }
+          );
+
+          if (!setCustomPictureResponse.success || !setCustomPictureResponse.data) {
+            throw new Error(setCustomPictureResponse.message || '设置自定义画面失败');
+          }
+
+          const muteParticipantResponse = await meetingControlApi.muteParticipant(
+            scheduleId,
+            classroom.pid,
+            { isMute: 1 }
+          );
+
+          if (!muteParticipantResponse.success || !muteParticipantResponse.data) {
+            throw new Error(muteParticipantResponse.message || '禁麦操作失败');
+          }
+
+          this.subscriberInPics = newSubscriberInPics;
+          this.$set(classroom, 'isInteracting', false);
+          this.$set(classroom, 'isRaisingHand', false);
+          this.$set(classroom, 'micEnabled', false);
+          this.$set(classroom, 'mute', 1);
+
+          this.$message.success('已结束互动');
+        } catch (error) {
+          console.error('结束互动失败:', error);
+          this.$message.error(error.message || '结束互动失败');
+        }
+      },
+      async handleApproveInteraction(classroomId) {
+        const classroom = this.classrooms.find(c => c.id === classroomId);
+        if (!classroom) {
+          this.$message.error('未找到教室信息');
+          return;
+        }
+
+        if (this.isClassroomOffline(classroom)) {
+          this.$message.error('设备离线，无法操作');
+          return;
+        }
+
+        const success = await this.executeInteraction(classroom, 'approve');
+        if (success) {
+          this.$message.success('已同意互动申请');
+        }
+      },
+      async handleIgnoreRaiseHand(classroomId) {
+        const classroom = this.classrooms.find(c => c.id === classroomId);
+        if (!classroom) {
+          this.$message.error('未找到教室信息');
+          return;
+        }
+
+        if (this.isClassroomOffline(classroom)) {
+          this.$message.error('设备离线，无法操作');
+          return;
+        }
+
+        if (!classroom.pid) {
+          this.$message.error('未找到与会人ID，无法操作');
+          return;
+        }
+
+        try {
+          const response = await meetingControlApi.setHandRaise(
+            this.scheduleId,
+            classroom.pid,
+            { handsState: 0 }
+          );
+
+          if (response.success && response.data) {
+            this.$set(classroom, 'isRaisingHand', false);
+            this.$message.info('已忽略举手申请');
+          } else {
+            throw new Error(response.message || '操作失败');
+          }
+        } catch (error) {
+          console.error('忽略举手失败:', error);
+          this.$message.error(error.message || '忽略举手失败');
+        }
+      },
+      async handleMuteAll() {
+        try {
+          const response = await meetingControlApi.muteAll(this.scheduleId, {
+            allowUnmuteByOneself: 0,
+            isMute: 1
+          });
+          if (response.success && response.data) {
+            this.classrooms.forEach(classroom => {
+              if (!this.isClassroomOffline(classroom)) {
+                this.$set(classroom, 'micEnabled', false);
+                this.$set(classroom, 'mute', 1);
+              }
+            });
+            this.$message.success('已全员禁麦');
+          } else {
+            this.$message.error(response.message || '全员禁麦失败');
+          }
+        } catch (error) {
+          console.error('全员禁麦失败:', error);
+          this.$message.error('全员禁麦失败');
+        }
+      },
+      async handleEndAllInteractions() {
+        try {
+          const { scheduleId, mainClassroomPhone } = this;
+
+          const subscriberInPics = [
+            {
+              index: 1,
+              subscriber: [mainClassroomPhone],
+              isAssistStream: 0
+            }
+          ];
+
+          const response = await meetingControlApi.setCustomPicture(
+            scheduleId,
+            {
+              manualSet: 1,
+              multiPicSaveOnly: false,
+              imageType: 'Single',
+              subscriberInPics
+            }
+          );
+
+          if (response.success && response.data) {
+            this.subscriberInPics = subscriberInPics;
+            this.classrooms.forEach(classroom => {
+              this.$set(classroom, 'isInteracting', false);
+              this.$set(classroom, 'isRaisingHand', false);
+            });
+            this.$message.success('已结束所有互动');
+          } else {
+            throw new Error(response.message || '结束所有互动失败');
+          }
+        } catch (error) {
+          console.error('结束所有互动失败:', error);
+          this.$message.error(error.message || '结束所有互动失败');
+        }
       },
       handleSimulateRaiseHand() {
         const availableClassrooms = this.classrooms.filter(
@@ -274,7 +821,7 @@
         );
         if (availableClassrooms.length > 0) {
           const randomClassroom = availableClassrooms[Math.floor(Math.random() * availableClassrooms.length)];
-          randomClassroom.isRaisingHand = true;
+          this.$set(randomClassroom, 'isRaisingHand', true);
           this.$message.info(`${randomClassroom.name} 申请互动`);
         }
       },
@@ -388,6 +935,15 @@
 
   .status-value.online .status-text {
     color: #4caf50;
+    font-weight: 500;
+  }
+
+  .status-value.offline .status-dot {
+    background: #f44336;
+  }
+
+  .status-value.offline .status-text {
+    color: #f44336;
     font-weight: 500;
   }
 

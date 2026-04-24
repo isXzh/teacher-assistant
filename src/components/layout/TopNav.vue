@@ -1,13 +1,13 @@
 <template>
   <div class="top-nav">
     <div class="nav-left">
-      <button v-if="showBack" class="back-button" @click="handleBack">
+      <!-- <button v-if="showBack" class="back-button" @click="handleBack">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
         </svg>
         <span>{{ backText }}</span>
-      </button>
+      </button> -->
     </div>
 
     <div class="nav-center">
@@ -16,8 +16,9 @@
 
     <div class="nav-right">
       <slot name="right"></slot>
-      <el-button round :loading="loading" @click="handleRefresh"> 刷新 </el-button>
-      <button v-if="showLogout" class="logout-button" @click="handleLogout" title="退出登录">
+      <!-- <el-button round :loading="loading" @click="handleRefresh"> 刷新 </el-button> -->
+      <!-- <button v-if="showLogout" class="logout-button" @click="handleLogout" title="退出登录"> -->
+      <button v-if="showLogout" style="color: white;" @click="handleLogout" title="退出登录">
         退出登录
         <!-- <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4 4m4-4h12m-2 0v6m-2 0h-2"></path>
@@ -47,10 +48,10 @@
         type: Boolean,
         default: false,
       },
-      loading: {
-        type: Boolean,
-        default: false,
-      },
+      // loading: {
+      //   type: Boolean,
+      //   default: false,
+      // },
     },
     methods: {
       handleBack() {
@@ -59,9 +60,9 @@
       handleLogout() {
         this.$emit('logout');
       },
-      handleRefresh() {
-        this.$emit('refresh');
-      },
+      // handleRefresh() {
+      //   this.$emit('refresh');
+      // },
     },
   };
 </script>

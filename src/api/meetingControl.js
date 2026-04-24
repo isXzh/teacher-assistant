@@ -3,15 +3,19 @@ import http from "@/utils/http.js";
 export default {
   // 单与会人禁麦/解除
   async muteParticipant(scheduleId, participantId, data) {
-    return await http.put(`/api/teacher/meeting/control/${scheduleId}/mute/${participantId}`, data);
+    return await http.put2(`/api/teacher/meeting/control/${scheduleId}/mute/${participantId}`, data);
+  },
+  // 设置与会人举手-放下手状态
+  async setHandRaise(scheduleId, participantId, data) {
+    return await http.put2(`/api/teacher/meeting/control/${scheduleId}/hands/${participantId}`, data);
   },
   // 全员禁麦/解除
   async muteAll(scheduleId, data) {
-    return await http.put(`/api/teacher/meeting/control/${scheduleId}/mute-all`, data);
+    return await http.put2(`/api/teacher/meeting/control/${scheduleId}/mute-all`, data);
   },
   // 设置自定义画面
   async setCustomPicture(scheduleId, data) {
-    return await http.put(`/api/teacher/meeting/control/${scheduleId}/custom-picture`, data);
+    return await http.put2(`/api/teacher/meeting/control/${scheduleId}/custom-picture`, data);
   },
   // 断开WebSocket连接
   async disconnectWebSocket(scheduleId) {
