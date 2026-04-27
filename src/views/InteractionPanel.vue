@@ -566,29 +566,49 @@
             }
           }
 
-          const newSubscriberInPics = [
-            {
-              index: 1,
-              subscriber: [mainClassroomPhone],
-              isAssistStream: 0
-            }
-          ];
+          let newSubscriberInPics;
+          if (subscriberInPics.length === 0) {
+            newSubscriberInPics = [
+              {
+                index: 1,
+                subscriber: [mainClassroomPhone],
+                isAssistStream: 0
+              }
+            ];
 
-          let currentIndex = 2;
-          subscriberInPics.forEach(item => {
             newSubscriberInPics.push({
-              index: currentIndex,
-              subscriber: item.subscriber,
+              index: 2,
+              subscriber: [classroom.phone],
               isAssistStream: 0
             });
-            currentIndex++;
-          });
+          } else {
+            newSubscriberInPics = [
+              {
+                index: 1,
+                subscriber: [mainClassroomPhone],
+                isAssistStream: 0
+              }
+            ];
 
-          newSubscriberInPics.push({
-            index: currentIndex,
-            subscriber: [classroom.phone],
-            isAssistStream: 0
-          });
+            let currentIndex = 2;
+            subscriberInPics.forEach(item => {
+              const phone = item.subscriber[0];
+              if (phone !== mainClassroomPhone) {
+                newSubscriberInPics.push({
+                  index: currentIndex,
+                  subscriber: [phone],
+                  isAssistStream: 0
+                });
+                currentIndex++;
+              }
+            });
+
+            newSubscriberInPics.push({
+              index: currentIndex,
+              subscriber: [classroom.phone],
+              isAssistStream: 0
+            });
+          }
 
           const setCustomPictureResponse = await meetingControlApi.setCustomPicture(
             scheduleId,
@@ -650,23 +670,37 @@
 
           const updatedSubscriberInPics = subscriberInPics.filter(item => item.subscriber[0] !== classroom.phone);
 
-          const newSubscriberInPics = [
-            {
-              index: 1,
-              subscriber: [mainClassroomPhone],
-              isAssistStream: 0
-            }
-          ];
+          let newSubscriberInPics;
+          if (subscriberInPics.length === 0) {
+            newSubscriberInPics = [
+              {
+                index: 1,
+                subscriber: [mainClassroomPhone],
+                isAssistStream: 0
+              }
+            ];
+          } else {
+            newSubscriberInPics = [
+              {
+                index: 1,
+                subscriber: [mainClassroomPhone],
+                isAssistStream: 0
+              }
+            ];
 
-          let currentIndex = 2;
-          updatedSubscriberInPics.forEach(item => {
-            newSubscriberInPics.push({
-              index: currentIndex,
-              subscriber: item.subscriber,
-              isAssistStream: 0
+            let currentIndex = 2;
+            updatedSubscriberInPics.forEach(item => {
+              const phone = item.subscriber[0];
+              if (phone !== mainClassroomPhone) {
+                newSubscriberInPics.push({
+                  index: currentIndex,
+                  subscriber: [phone],
+                  isAssistStream: 0
+                });
+                currentIndex++;
+              }
             });
-            currentIndex++;
-          });
+          }
 
           const setCustomPictureResponse = await meetingControlApi.setCustomPicture(
             scheduleId,
@@ -780,28 +814,52 @@
       },
       async handleEndAllInteractions() {
         try {
-          const { scheduleId, mainClassroomPhone } = this;
+          const { scheduleId, subscriberInPics, mainClassroomPhone } = this;
 
-          const subscriberInPics = [
-            {
-              index: 1,
-              subscriber: [mainClassroomPhone],
-              isAssistStream: 0
-            }
-          ];
+          let newSubscriberInPics;
+          if (subscriberInPics.length === 0) {
+            newSubscriberInPics = [
+              {
+                index: 1,
+                subscriber: [mainClassroomPhone],
+                isAssistStream: 0
+              }
+            ];
+          } else {
+            newSubscriberInPics = [
+              {
+                index: 1,
+                subscriber: [mainClassroomPhone],
+                isAssistStream: 0
+              }
+            ];
+
+            let currentIndex = 2;
+            subscriberInPics.forEach(item => {
+              const phone = item.subscriber[0];
+              if (phone !== mainClassroomPhone) {
+                newSubscriberInPics.push({
+                  index: currentIndex,
+                  subscriber: [phone],
+                  isAssistStream: 0
+                });
+                currentIndex++;
+              }
+            });
+          }
 
           const response = await meetingControlApi.setCustomPicture(
             scheduleId,
             {
               manualSet: 1,
               multiPicSaveOnly: false,
-              imageType: 'Single',
-              subscriberInPics
+              imageType: this.getImageType(newSubscriberInPics.length),
+              subscriberInPics: newSubscriberInPics
             }
           );
 
           if (response.success && response.data) {
-            this.subscriberInPics = subscriberInPics;
+            this.subscriberInPics = newSubscriberInPics;
             this.classrooms.forEach(classroom => {
               this.$set(classroom, 'isInteracting', false);
               this.$set(classroom, 'isRaisingHand', false);
