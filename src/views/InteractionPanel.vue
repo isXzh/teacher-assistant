@@ -11,7 +11,7 @@
         <div class="device-status-card">
           <div class="card-header">
             <h2 class="card-title">{{ mainClassroomName || '主讲教室保障箱' }}</h2>
-            <button class="refresh-button">
+            <button class="refresh-button" @click="fetchRealtimeInfo">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
@@ -45,7 +45,7 @@
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
-                    d="M5 12.55a11 11 0 0111.99 9.134A11 11 0 0112.55 12.55v0a11 11 0 01-1.99-9.134A11 11 0 015.45 12.55v0z"
+                    d="M5 12.55a11 11 0 0111.99 9.134A11 11 0 0112.55 12.55v0a11 11 0 01-11.99-9.134A11 11 0 015.45 12.55v0z"
                   ></path>
                 </svg>
                 <span class="status-text">优秀</span>
@@ -80,9 +80,33 @@
 
         <div class="global-controls-card">
           <h2 class="card-title">全局互动控制</h2>
-          <div class="control-buttons">
-            <button class="control-button danger" @click="handleMuteAll">全员禁麦</button>
-            <button class="control-button secondary" @click="handleEndAllInteractions">结束所有互动</button>
+          <div class="control-icons">
+            <div class="control-icon-item" @click="handleMuteAll">
+              <div class="icon-circle danger">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                  />
+                </svg>
+              </div>
+              <span class="icon-label">全员禁麦</span>
+            </div>
+            <div class="control-icon-item" @click="handleEndAllInteractions">
+              <div class="icon-circle secondary">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                  />
+                </svg>
+              </div>
+              <span class="icon-label">结束所有互动</span>
+            </div>
           </div>
         </div>
 
@@ -103,7 +127,7 @@
         <div class="classrooms-header">
           <h3 class="section-title">辅讲教室（远程互动）</h3>
           <div class="header-actions">
-            <button class="simulate-button" @click="handleSimulateRaiseHand">
+            <!-- <button class="simulate-button" @click="handleSimulateRaiseHand">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
@@ -113,7 +137,7 @@
                 ></path>
               </svg>
               模拟举手
-            </button>
+            </button> -->
             <button class="refresh-button">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -164,7 +188,6 @@
   import ClassroomCard from '@/components/business/ClassroomCard.vue';
   import homeApi from '@/api/home';
   import meetingControlApi from '@/api/meetingControl';
-  import { EventSourcePolyfill } from 'event-source-polyfill';
 
   export default {
     name: 'InteractionPanel',
@@ -177,18 +200,17 @@
         classrooms: [],
         showEndClassDialog: false,
         scheduleId: null,
-        sseClient: null,
         messages: [],
         mainClassroomPhone: null,
         mainClassroomName: null,
         subscriberInPics: [],
-        sseConnected: false,
-        reconnectAttempts: 0,
-        maxReconnectAttempts: 10,
-        reconnectInterval: 3000,
-        heartbeatTimer: null,
-        heartbeatInterval: 30000
+        sseEventHandlers: {},
       };
+    },
+    computed: {
+      sseConnected() {
+        return this.$store.getters['sse/isSseConnected'];
+      },
     },
     async created() {
       this.scheduleId = this.$route.params.courseId;
@@ -203,53 +225,38 @@
         }
       }
     },
-    mounted() {
-      this.initSSE();
+    async mounted() {
+      await this.initSSEConnection();
+      this.setupSSEEventListeners();
     },
-  beforeDestroy() {
-      this.closeSSE();
-      this.stopHeartbeat();
+    beforeDestroy() {
+      this.removeSSEEventListeners();
       if (this.subscriberInPics && this.subscriberInPics.length > 0) {
         sessionStorage.setItem('subscriberInPics', JSON.stringify(this.subscriberInPics));
       }
     },
     methods: {
-      initSSE() {
-        const token = sessionStorage.getItem('accessToken');
+      async initSSEConnection() {
+        try {
+          await this.$store.dispatch('sse/initSSE', this.scheduleId);
+        } catch (error) {
+          console.error('SSE连接初始化失败:', error);
+        }
+      },
 
-        if (!token) {
-          console.error('未找到访问令牌，无法建立SSE连接');
-          this.$message.error('未找到访问令牌，请重新登录');
+      setupSSEEventListeners() {
+        const sseClient = this.$store.getters['sse/getSseClient'];
+        if (!sseClient) {
+          console.error('SSE客户端未初始化');
           return;
         }
 
-        this.closeSSE();
-
-        this.sseClient = new EventSourcePolyfill(
-          `${window.businessURL}/api/teacher/meeting/control/${this.scheduleId}/sse`,
-          {
-            headers: {
-              token: `Bearer ${token}`
-            },
-            withCredentials: false
-          }
-        );
-
-        this.sseClient.onopen = () => {
-          console.log('SSE连接已建立');
-          this.sseConnected = true;
-          this.reconnectAttempts = 0;
-          this.startHeartbeat();
-        };
-
-        this.sseClient.onmessage = (event) => {
+        sseClient.onmessage = (event) => {
           this.handleMessage(event);
         };
 
-        this.sseClient.addEventListener('participants', (event) => {
-          this.handleParticipants(event);
-        });
-        this.sseClient.addEventListener('confDynamicInfo', (event) => {
+        this.sseEventHandlers.participants = event => this.handleParticipants(event);
+        this.sseEventHandlers.confDynamicInfo = event => {
           const data = JSON.parse(event.data);
           console.log('confDynamicInfo update===============:', data);
           if (data.state === 'Destroyed') {
@@ -257,11 +264,31 @@
             sessionStorage.removeItem('subscriberInPics');
             console.log('会议已销毁，已清空subscriberInPics');
           }
+        };
+
+        this.$store.dispatch('sse/addEventListener', {
+          event: 'participants',
+          handler: this.sseEventHandlers.participants,
         });
 
-        this.sseClient.onerror = (error) => {
-          this.handleSSEError(error);
-        };
+        this.$store.dispatch('sse/addEventListener', {
+          event: 'confDynamicInfo',
+          handler: this.sseEventHandlers.confDynamicInfo,
+        });
+      },
+
+      removeSSEEventListeners() {
+        this.$store.dispatch('sse/removeEventListener', {
+          event: 'participants',
+          handler: this.sseEventHandlers.participants,
+        });
+
+        this.$store.dispatch('sse/removeEventListener', {
+          event: 'confDynamicInfo',
+          handler: this.sseEventHandlers.confDynamicInfo,
+        });
+
+        this.sseEventHandlers = {};
       },
 
       handleMessage(event) {
@@ -292,11 +319,7 @@
                 if (classroom) {
                   if (handState === '1') {
                     if (classroom.isInteracting) {
-                      meetingControlApi.setHandRaise(
-                        this.scheduleId,
-                        pid,
-                        { handsState: 0 }
-                      ).catch(error => {
+                      meetingControlApi.setHandRaise(this.scheduleId, pid, { handsState: 0 }).catch(error => {
                         console.error('自动放下手失败:', error);
                       });
                     } else {
@@ -319,54 +342,6 @@
         }
       },
 
-      handleSSEError(error) {
-        console.error('SSE连接错误:', error);
-        this.sseConnected = false;
-        this.stopHeartbeat();
-
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
-          this.reconnectAttempts++;
-          const delay = this.reconnectInterval * Math.min(this.reconnectAttempts, 5);
-          console.log(`SSE连接断开，${delay / 1000}秒后尝试第${this.reconnectAttempts}次重连...`);
-          
-          setTimeout(() => {
-            this.initSSE();
-          }, delay);
-        } else {
-          console.error('SSE连接重连次数已达上限，停止重连');
-          this.$message.warning('实时连接已断开，请刷新页面重试');
-        }
-      },
-
-      startHeartbeat() {
-        this.stopHeartbeat();
-        this.heartbeatTimer = setInterval(() => {
-          if (this.sseClient && this.sseClient.readyState === 1) {
-            console.log('SSE心跳检测: 连接正常');
-          } else {
-            console.warn('SSE心跳检测: 连接异常，尝试重连');
-            this.stopHeartbeat();
-            this.handleSSEError(new Error('心跳检测失败'));
-          }
-        }, this.heartbeatInterval);
-      },
-
-      stopHeartbeat() {
-        if (this.heartbeatTimer) {
-          clearInterval(this.heartbeatTimer);
-          this.heartbeatTimer = null;
-        }
-      },
-
-      closeSSE() {
-        this.stopHeartbeat();
-        if (this.sseClient) {
-          this.sseClient.close();
-          this.sseClient = null;
-        }
-        this.sseConnected = false;
-      },
-
       getImageType(count) {
         const imageTypes = {
           1: 'Single',
@@ -377,7 +352,7 @@
           6: 'Six',
           7: 'Seven',
           8: 'Eight',
-          9: 'Nine'
+          9: 'Nine',
         };
         return imageTypes[count] || 'Single';
       },
@@ -414,7 +389,7 @@
       processClassrooms(attendees, participants) {
         const attendeeList = attendees || [];
         const participantList = participants || [];
-        
+
         if (this.mainClassroomPhone) {
           const mainClassroom = attendeeList.find(attendee => attendee.phone === this.mainClassroomPhone);
           if (mainClassroom) {
@@ -422,26 +397,25 @@
             console.log('主讲教室name:', this.mainClassroomName);
           }
         }
-        
+
         const participantPhones = participantList.map(p => p.phone);
-        
-        const filteredAttendees = this.mainClassroomPhone 
+
+        const filteredAttendees = this.mainClassroomPhone
           ? attendeeList.filter(attendee => attendee.phone !== this.mainClassroomPhone)
           : attendeeList;
-        
-        const interactingPhones = this.subscriberInPics.length > 1 
-          ? this.subscriberInPics.slice(1).map(item => item.subscriber[0])
-          : [];
-        
+
+        const interactingPhones =
+          this.subscriberInPics.length > 1 ? this.subscriberInPics.slice(1).map(item => item.subscriber[0]) : [];
+
         this.classrooms = filteredAttendees.map((attendee, index) => {
           const isOnline = participantPhones.includes(attendee.phone);
           const participant = participantList.find(p => p.phone === attendee.phone);
           const existingClassroom = this.classrooms.find(c => c.phone === attendee.phone);
-          
+
           const isInteracting = existingClassroom ? existingClassroom.isInteracting : false;
-          const hand = participant ? participant.hand : (existingClassroom ? existingClassroom.hand : null);
-          const mute = participant ? participant.mute : (existingClassroom ? existingClassroom.mute : null);
-          
+          const hand = participant ? participant.hand : existingClassroom ? existingClassroom.hand : null;
+          const mute = participant ? participant.mute : existingClassroom ? existingClassroom.mute : null;
+
           return {
             id: index + 1,
             name: attendee.name,
@@ -456,7 +430,7 @@
             userUUID: attendee.userUUID,
             pid: participant ? participant.pid : existingClassroom ? existingClassroom.pid : null,
             mute: mute,
-            hand: hand
+            hand: hand,
           };
         });
 
@@ -470,8 +444,7 @@
             this.$set(classroom, 'micEnabled', participant.mute === 0);
           }
         });
-        console.log('interactingPhones======',interactingPhones);
-        
+        console.log('interactingPhones======', interactingPhones);
       },
       handleBack() {
         this.$router.push('/main');
@@ -485,6 +458,7 @@
           if (response.code === 200 && response.data) {
             this.subscriberInPics = [];
             sessionStorage.removeItem('subscriberInPics');
+            this.$store.dispatch('sse/closeSSE');
             this.$message.success('下课成功');
             this.showEndClassDialog = false;
             setTimeout(() => {
@@ -510,11 +484,7 @@
         }
         try {
           const isMute = classroom.micEnabled ? 1 : 0;
-          const response = await meetingControlApi.muteParticipant(
-            this.scheduleId,
-            classroom.pid,
-            { isMute }
-          );
+          const response = await meetingControlApi.muteParticipant(this.scheduleId, classroom.pid, { isMute });
           if (response.success && response.data) {
             this.$set(classroom, 'micEnabled', !classroom.micEnabled);
             this.$set(classroom, 'mute', isMute);
@@ -555,11 +525,9 @@
           const { scheduleId, subscriberInPics, mainClassroomPhone } = this;
 
           if (classroom.isRaisingHand) {
-            const setHandRaiseResponse = await meetingControlApi.setHandRaise(
-              scheduleId,
-              classroom.pid,
-              { handsState: 0 }
-            );
+            const setHandRaiseResponse = await meetingControlApi.setHandRaise(scheduleId, classroom.pid, {
+              handsState: 0,
+            });
 
             if (!setHandRaiseResponse.success || !setHandRaiseResponse.data) {
               throw new Error(setHandRaiseResponse.message || '设置举手状态失败');
@@ -572,22 +540,22 @@
               {
                 index: 1,
                 subscriber: [mainClassroomPhone],
-                isAssistStream: 0
-              }
+                isAssistStream: 0,
+              },
             ];
 
             newSubscriberInPics.push({
               index: 2,
               subscriber: [classroom.phone],
-              isAssistStream: 0
+              isAssistStream: 0,
             });
           } else {
             newSubscriberInPics = [
               {
                 index: 1,
                 subscriber: [mainClassroomPhone],
-                isAssistStream: 0
-              }
+                isAssistStream: 0,
+              },
             ];
 
             let currentIndex = 2;
@@ -597,7 +565,7 @@
                 newSubscriberInPics.push({
                   index: currentIndex,
                   subscriber: [phone],
-                  isAssistStream: 0
+                  isAssistStream: 0,
                 });
                 currentIndex++;
               }
@@ -606,29 +574,24 @@
             newSubscriberInPics.push({
               index: currentIndex,
               subscriber: [classroom.phone],
-              isAssistStream: 0
+              isAssistStream: 0,
             });
           }
 
-          const setCustomPictureResponse = await meetingControlApi.setCustomPicture(
-            scheduleId,
-            {
-              manualSet: 1,
-              multiPicSaveOnly: false,
-              imageType: this.getImageType(newSubscriberInPics.length),
-              subscriberInPics: newSubscriberInPics
-            }
-          );
+          const setCustomPictureResponse = await meetingControlApi.setCustomPicture(scheduleId, {
+            manualSet: 1,
+            multiPicSaveOnly: false,
+            imageType: this.getImageType(newSubscriberInPics.length),
+            subscriberInPics: newSubscriberInPics,
+          });
 
           if (!setCustomPictureResponse.success || !setCustomPictureResponse.data) {
             throw new Error(setCustomPictureResponse.message || '设置自定义画面失败');
           }
 
-          const muteParticipantResponse = await meetingControlApi.muteParticipant(
-            scheduleId,
-            classroom.pid,
-            { isMute: 0 }
-          );
+          const muteParticipantResponse = await meetingControlApi.muteParticipant(scheduleId, classroom.pid, {
+            isMute: 0,
+          });
 
           if (!muteParticipantResponse.success || !muteParticipantResponse.data) {
             throw new Error(muteParticipantResponse.message || '禁麦操作失败');
@@ -676,16 +639,16 @@
               {
                 index: 1,
                 subscriber: [mainClassroomPhone],
-                isAssistStream: 0
-              }
+                isAssistStream: 0,
+              },
             ];
           } else {
             newSubscriberInPics = [
               {
                 index: 1,
                 subscriber: [mainClassroomPhone],
-                isAssistStream: 0
-              }
+                isAssistStream: 0,
+              },
             ];
 
             let currentIndex = 2;
@@ -695,32 +658,27 @@
                 newSubscriberInPics.push({
                   index: currentIndex,
                   subscriber: [phone],
-                  isAssistStream: 0
+                  isAssistStream: 0,
                 });
                 currentIndex++;
               }
             });
           }
 
-          const setCustomPictureResponse = await meetingControlApi.setCustomPicture(
-            scheduleId,
-            {
-              manualSet: 1,
-              multiPicSaveOnly: false,
-              imageType: this.getImageType(newSubscriberInPics.length),
-              subscriberInPics: newSubscriberInPics
-            }
-          );
+          const setCustomPictureResponse = await meetingControlApi.setCustomPicture(scheduleId, {
+            manualSet: 1,
+            multiPicSaveOnly: false,
+            imageType: this.getImageType(newSubscriberInPics.length),
+            subscriberInPics: newSubscriberInPics,
+          });
 
           if (!setCustomPictureResponse.success || !setCustomPictureResponse.data) {
             throw new Error(setCustomPictureResponse.message || '设置自定义画面失败');
           }
 
-          const muteParticipantResponse = await meetingControlApi.muteParticipant(
-            scheduleId,
-            classroom.pid,
-            { isMute: 1 }
-          );
+          const muteParticipantResponse = await meetingControlApi.muteParticipant(scheduleId, classroom.pid, {
+            isMute: 1,
+          });
 
           if (!muteParticipantResponse.success || !muteParticipantResponse.data) {
             throw new Error(muteParticipantResponse.message || '禁麦操作失败');
@@ -773,11 +731,7 @@
         }
 
         try {
-          const response = await meetingControlApi.setHandRaise(
-            this.scheduleId,
-            classroom.pid,
-            { handsState: 0 }
-          );
+          const response = await meetingControlApi.setHandRaise(this.scheduleId, classroom.pid, { handsState: 0 });
 
           if (response.success && response.data) {
             this.$set(classroom, 'isRaisingHand', false);
@@ -794,7 +748,7 @@
         try {
           const response = await meetingControlApi.muteAll(this.scheduleId, {
             allowUnmuteByOneself: 0,
-            isMute: 1
+            isMute: 1,
           });
           if (response.success && response.data) {
             this.classrooms.forEach(classroom => {
@@ -813,6 +767,13 @@
         }
       },
       async handleEndAllInteractions() {
+        // 判断 subscriberInPics 的 length 是否为0，如果为0则 return
+        if (this.subscriberInPics.length === 0) {
+          return;
+        }
+        // 如果不为0，subscriberInPics 数组只保留第一项，删除其他项
+        this.subscriberInPics = this.subscriberInPics.slice(0, 1);
+
         try {
           const { scheduleId, subscriberInPics, mainClassroomPhone } = this;
 
@@ -822,16 +783,16 @@
               {
                 index: 1,
                 subscriber: [mainClassroomPhone],
-                isAssistStream: 0
-              }
+                isAssistStream: 0,
+              },
             ];
           } else {
             newSubscriberInPics = [
               {
                 index: 1,
                 subscriber: [mainClassroomPhone],
-                isAssistStream: 0
-              }
+                isAssistStream: 0,
+              },
             ];
 
             let currentIndex = 2;
@@ -841,22 +802,19 @@
                 newSubscriberInPics.push({
                   index: currentIndex,
                   subscriber: [phone],
-                  isAssistStream: 0
+                  isAssistStream: 0,
                 });
                 currentIndex++;
               }
             });
           }
 
-          const response = await meetingControlApi.setCustomPicture(
-            scheduleId,
-            {
-              manualSet: 1,
-              multiPicSaveOnly: false,
-              imageType: this.getImageType(newSubscriberInPics.length),
-              subscriberInPics: newSubscriberInPics
-            }
-          );
+          const response = await meetingControlApi.setCustomPicture(scheduleId, {
+            manualSet: 1,
+            multiPicSaveOnly: false,
+            imageType: this.getImageType(newSubscriberInPics.length),
+            subscriberInPics: newSubscriberInPics,
+          });
 
           if (response.success && response.data) {
             this.subscriberInPics = newSubscriberInPics;
@@ -892,13 +850,25 @@
 
 <style scoped>
   .end-class-button {
-    border: 1px solid red;
-    /* width: 50px; */
+    border: 1px solid white;
+    /* border: 1px solid #F44336; */
     border-radius: 6px;
-    color: red;
-    padding: 5px 15px;
+    color: #fff;
+    /* color: #F44336; */
+    /* background: white; */
+    padding: 6px 16px;
     text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
   }
+
+  .end-class-button:hover {
+    background: #f44336;
+    color: white;
+  }
+
   .interaction-panel {
     display: flex;
     flex-direction: column;
@@ -913,12 +883,14 @@
   }
 
   .sidebar {
-    width: 30%;
+    /* width: 320px; */
+    width: 240px;
     padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 16px;
     overflow-y: auto;
+    background: #f5f7fa;
   }
 
   .device-status-card,
@@ -927,7 +899,7 @@
     background: white;
     border-radius: 12px;
     padding: 16px;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
   }
 
   .card-header {
@@ -939,13 +911,13 @@
 
   .card-title {
     font-size: 16px;
-    font-weight: 700;
+    font-weight: 600;
     color: #333;
     margin: 0;
   }
 
   .refresh-button {
-    color: #1e88e5;
+    color: #2979ff;
     background: transparent;
     border: none;
     cursor: pointer;
@@ -955,7 +927,7 @@
   }
 
   .refresh-button:hover {
-    color: #1976d2;
+    color: #1e88e5;
   }
 
   .status-list {
@@ -1005,60 +977,86 @@
     font-weight: 500;
   }
 
-  .control-buttons {
+  .control-icons {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
+    flex-direction: row;
+    justify-content: center;
+    gap: 32px;
+    padding: 16px 0;
   }
 
-  .control-button {
-    width: 100%;
-    height: 44px;
-    border-radius: 8px;
-    border: none;
-    font-size: 14px;
-    font-weight: 500;
+  .control-icon-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
   }
 
-  .control-button.danger {
-    border: 2px solid #f44336;
-    color: #f44336;
-    background: white;
+  .control-icon-item:hover {
+    transform: translateY(-2px);
   }
 
-  .control-button.danger:hover {
-    background: #fef2f2;
+  .icon-circle {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
   }
 
-  .control-button.secondary {
-    border: 1px solid #d1d5db;
+  .icon-circle.danger {
+    background: #ff5722;
+    box-shadow: 0 4px 12px rgba(255, 87, 34, 0.3);
+  }
+
+  .icon-circle.danger:hover {
+    background: #f4511e;
+    box-shadow: 0 6px 16px rgba(255, 87, 34, 0.4);
+  }
+
+  .icon-circle.secondary {
+    background: #2196f3;
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+  }
+
+  .icon-circle.secondary:hover {
+    background: #1e88e5;
+    box-shadow: 0 6px 16px rgba(33, 150, 243, 0.4);
+  }
+
+  .icon {
+    width: 28px;
+    height: 28px;
+    color: white;
+  }
+
+  .icon-label {
+    font-size: 13px;
+    font-weight: 500;
     color: #666;
-    background: white;
-  }
-
-  .control-button.secondary:hover {
-    background: #f5f5f5;
   }
 
   .hint-card {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
+    background: #e3f2fd;
+    border: 1px solid #bbdefb;
   }
 
   .hint-card svg {
-    color: #1d4ed8;
+    color: #1976d2;
     flex-shrink: 0;
     margin-top: 2px;
   }
 
   .hint-card p {
     font-size: 12px;
-    color: #1e40af;
+    color: #1565c0;
     margin: 0;
   }
 
@@ -1078,7 +1076,7 @@
 
   .section-title {
     font-size: 20px;
-    font-weight: 700;
+    font-weight: 600;
     color: #333;
     margin: 0;
   }
@@ -1113,7 +1111,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px dashed #d1d5db;
+    border: 2px dashed #e0e0e0;
     border-radius: 12px;
   }
 
@@ -1123,8 +1121,11 @@
   }
 
   .classrooms-grid {
-    display: grid;
+    /* display: grid;
     grid-template-columns: repeat(2, 1fr);
+    gap: 20px; */
+    display: flex;
+    flex-wrap: wrap;
     gap: 20px;
   }
 
@@ -1148,7 +1149,7 @@
 
   .dialog-title {
     font-size: 18px;
-    font-weight: 700;
+    font-weight: 600;
     color: #333;
     margin: 0 0 8px 0;
   }
@@ -1176,7 +1177,7 @@
   }
 
   .dialog-button.secondary {
-    border: 1px solid #d1d5db;
+    border: 1px solid #e0e0e0;
     color: #666;
     background: white;
   }
@@ -1191,6 +1192,6 @@
   }
 
   .dialog-button.danger:hover {
-    background: #dc2626;
+    background: #e53935;
   }
 </style>

@@ -75,7 +75,7 @@ export default {
     },
     getButtonClass() {
       if (this.course.canEnterEarly) {
-        return 'w-full bg-white border-2 border-primary text-primary hover:bg-blue-50 active:bg-blue-100'
+        return 'w-full bg-white border border-[#e58600] text-[#e58600] hover:bg-[#fff8ed] active:bg-[#ffecd9]'
       } else {
         return 'w-full bg-gray-100 text-gray-400 cursor-not-allowed'
       }

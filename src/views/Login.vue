@@ -125,20 +125,8 @@
           .then(response => {
             this.loading = false;
             if (response.code == 200) {
-              // 保存token
               sessionStorage.setItem('accessToken', response.data.accessToken);
               sessionStorage.setItem('refreshToken', response.data.refreshToken);
-              // sessionStorage.setItem(
-              //   "userInfo",
-              //   JSON.stringify(response.data.user)
-              // );
-
-              // 记住我功能
-              // if (this.rememberMe) {
-              //   sessionStorage.setItem('rememberedUser', this.username);
-              // } else {
-              //   sessionStorage.removeItem('rememberedUser');
-              // }
 
               this.$message.success('登录成功');
               this.$router.push({ path: '/main' });

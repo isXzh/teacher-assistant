@@ -18,7 +18,7 @@
       <slot name="right"></slot>
       <!-- <el-button round :loading="loading" @click="handleRefresh"> 刷新 </el-button> -->
       <!-- <button v-if="showLogout" class="logout-button" @click="handleLogout" title="退出登录"> -->
-      <button v-if="showLogout" style="color: white;" @click="handleLogout" title="退出登录">
+      <button v-if="showLogout" style="color: white" @click="handleLogout" title="退出登录">
         退出登录
         <!-- <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4 4m4-4h12m-2 0v6m-2 0h-2"></path>
@@ -58,7 +58,20 @@
         this.$emit('back');
       },
       handleLogout() {
-        this.$emit('logout');
+        this.$confirm('是否确定退出登录?', '退出登录', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning',
+        })
+          .then(() => {
+            this.$emit('logout');
+          })
+          .catch(() => {
+            this.$message({
+              type: 'info',
+              message: '已取消',
+            });
+          });
       },
       // handleRefresh() {
       //   this.$emit('refresh');
@@ -70,11 +83,11 @@
 <style lang="scss" scoped>
   .top-nav {
     height: 56px;
-    background: #1a237e;
+    background: #2979ff;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 24px;
+    padding: 0 16px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 

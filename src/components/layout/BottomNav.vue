@@ -73,7 +73,7 @@ export default {
 }
 
 .nav-item.active {
-  color: #1E88E5;
+  color: #2979FF;
 }
 
 .nav-icon {
@@ -84,7 +84,7 @@ export default {
 }
 
 .nav-icon.active {
-  color: #1E88E5;
+  color: #2979FF;
 }
 
 .nav-text {
@@ -95,6 +95,6 @@ export default {
 }
 
 .nav-text.active {
-  color: #1E88E5;
+  color: #2979FF;
 }
 </style>

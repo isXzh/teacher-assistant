@@ -1,3 +1,4 @@
+import Vue from 'vue'
 import homeApi from '@/api/home'
 
 export default {
@@ -18,9 +19,9 @@ export default {
       state.courseLoading = loading
     },
     UPDATE_COURSE_STATUS(state, { courseId, status }) {
-      const course = state.todayCourses.find(c => c.id === courseId)
-      if (course) {
-        course.status = status
+      const index = state.todayCourses.findIndex(c => c.id === courseId)
+      if (index !== -1) {
+        Vue.set(state.todayCourses[index], 'status', status)
       }
     }
   },
