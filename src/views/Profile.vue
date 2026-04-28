@@ -185,6 +185,7 @@
 
 <script>
   import auth from '@/api/auth';
+  import profile from '@/api/profile';
 
   export default {
     name: 'Profile',
@@ -242,21 +243,40 @@
       handleSaveProfile() {
         this.showSuccess('保存成功');
       },
-      handleSavePassword() {
+      async handleSavePassword() {
         if (this.passwordForm.newPassword !== this.passwordForm.confirmPassword) {
           alert('两次输入的密码不一致');
           return;
         }
-        if (this.passwordForm.newPassword.length < 8) {
-          alert('密码长度至少8位');
-          return;
+
+        try {
+          await this.$confirm('是否确定修改密码?', '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning',
+          });
+
+          const res = await profile.updatePassword({
+            oldPassword: this.passwordForm.oldPassword,
+            newPassword: this.passwordForm.newPassword,
+            confirmPassword: this.passwordForm.confirmPassword,
+          });
+
+          this.showSuccess('修改成功');
+          this.passwordForm = {
+            oldPassword: '',
+            newPassword: '',
+            confirmPassword: '',
+          };
+        } catch (error) {
+          if (error !== 'cancel') {
+            console.error('修改密码失败:', error);
+            this.$message({
+              type: 'error',
+              message: error.message || '修改密码失败，请重试',
+            });
+          }
         }
-        this.showSuccess('修改成功');
-        this.passwordForm = {
-          oldPassword: '',
-          newPassword: '',
-          confirmPassword: '',
-        };
       },
       toggleNotification(key) {
         this.notifications[key] = !this.notifications[key];

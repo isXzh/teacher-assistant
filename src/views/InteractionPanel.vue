@@ -8,6 +8,9 @@
 
     <div class="main-content">
       <div class="sidebar">
+        <!-- <button class="landscape-button" :class="{ active: isLandscape }" @click="handleToggleLandscape">
+          <span>{{ isLandscape ? '竖屏' : '横屏' }}</span>
+        </button> -->
         <div class="device-status-card">
           <div class="card-header">
             <h2 class="card-title">{{ mainClassroomName || '主讲教室保障箱' }}</h2>
@@ -23,13 +26,13 @@
             </button>
           </div>
           <div class="status-list">
-            <div class="status-item">
+            <!-- <div class="status-item">
               <span class="status-label">连接状态</span>
               <div class="status-value online">
                 <div class="status-dot"></div>
                 <span class="status-text">在线</span>
               </div>
-            </div>
+            </div> -->
             <div class="status-item">
               <span class="status-label">实时连接</span>
               <div :class="['status-value', sseConnected ? 'online' : 'offline']">
@@ -37,7 +40,7 @@
                 <span class="status-text">{{ sseConnected ? '正常' : '断开' }}</span>
               </div>
             </div>
-            <div class="status-item">
+            <!-- <div class="status-item">
               <span class="status-label">网络质量</span>
               <div class="status-value online">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -74,7 +77,7 @@
                 </svg>
                 <span class="status-text">正常</span>
               </div>
-            </div>
+            </div> -->
           </div>
         </div>
 
@@ -205,6 +208,7 @@
         mainClassroomName: null,
         subscriberInPics: [],
         sseEventHandlers: {},
+        isLandscape: false,
       };
     },
     computed: {
@@ -234,6 +238,9 @@
       if (this.subscriberInPics && this.subscriberInPics.length > 0) {
         sessionStorage.setItem('subscriberInPics', JSON.stringify(this.subscriberInPics));
       }
+      if (this.isLandscape) {
+        this.exitLandscapeMode();
+      }
     },
     methods: {
       async initSSEConnection() {
@@ -251,7 +258,7 @@
           return;
         }
 
-        sseClient.onmessage = (event) => {
+        sseClient.onmessage = event => {
           this.handleMessage(event);
         };
 
@@ -844,6 +851,47 @@
       isClassroomOffline(classroom) {
         return classroom.boxStatus === '离线' || classroom.clientStatus === '断开';
       },
+      handleToggleLandscape() {
+        this.isLandscape = !this.isLandscape;
+        
+        if (this.isLandscape) {
+          this.enterLandscapeMode();
+        } else {
+          this.exitLandscapeMode();
+        }
+      },
+      async enterLandscapeMode() {
+        try {
+          if (screen.orientation && screen.orientation.lock) {
+            await screen.orientation.lock('landscape');
+          }
+          
+          document.body.classList.add('landscape-mode');
+          this.$message.success('已切换至横屏模式');
+        } catch (error) {
+          console.error('横屏切换失败:', error);
+          
+          if (error.name === 'NotSupportedError') {
+            this.$message.warning('请允许全屏权限以使用横屏模式');
+          } else {
+            this.$message.warning('横屏切换失败，请手动旋转设备');
+          }
+        }
+      },
+      async exitLandscapeMode() {
+        try {
+          if (screen.orientation && screen.orientation.unlock) {
+            screen.orientation.unlock();
+          }
+          
+          document.body.classList.remove('landscape-mode');
+          this.$message.success('已切换至竖屏模式');
+        } catch (error) {
+          console.error('竖屏切换失败:', error);
+          document.body.classList.remove('landscape-mode');
+          this.$message.success('已切换至竖屏模式');
+        }
+      },
     },
   };
 </script>
@@ -1193,5 +1241,90 @@
 
   .dialog-button.danger:hover {
     background: #e53935;
+  }
+
+  .landscape-button {
+    width: 100%;
+    padding: 12px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    color: #666;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  .landscape-button:hover {
+    background: #f5f5f5;
+    border-color: #2196f3;
+    color: #2196f3;
+  }
+
+  .landscape-button.active {
+    background: #2196f3;
+    border-color: #2196f3;
+    color: white;
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+  }
+
+  .landscape-button.active:hover {
+    background: #1976d2;
+    border-color: #1976d2;
+  }
+</style>
+
+<style>
+  body.landscape-mode .interaction-panel {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  body.landscape-mode .sidebar {
+    width: 280px;
+    padding: 12px;
+    gap: 12px;
+  }
+
+  body.landscape-mode .content-area {
+    padding: 12px;
+  }
+
+  body.landscape-mode .classrooms-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  @media (max-width: 1024px) {
+    body.landscape-mode .sidebar {
+      width: 240px;
+      padding: 8px;
+      gap: 8px;
+    }
+
+    body.landscape-mode .classrooms-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    body.landscape-mode .sidebar {
+      width: 200px;
+      padding: 6px;
+      gap: 6px;
+    }
+
+    body.landscape-mode .content-area {
+      padding: 8px;
+    }
+
+    body.landscape-mode .classrooms-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
   }
 </style>
