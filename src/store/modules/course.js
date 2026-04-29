@@ -41,6 +41,7 @@ export default {
               classroom: course.classroomName,
               teacher: course.teacherName,
               status: course.controlStatusName || '未开始',
+              controlStatus: course.controlStatus,
               canEnterEarly: course.controlStatus === 2
             }
           })

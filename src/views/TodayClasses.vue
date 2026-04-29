@@ -239,19 +239,20 @@
         return 'pending';
       },
       getButtonClass(course) {
-        if (course.status === '进行中') return 'btn-primary';
-        if (course.status === '未开始') return 'btn-secondary';
+        if (course.controlStatus === 1) return 'btn-primary';
+        if (course.controlStatus === 2) return 'btn-early';
+        if (course.controlStatus === 3) return 'btn-secondary';
         return 'btn-disabled';
       },
       canEnterCourse(course) {
-        return course.status === '进行中' || course.status === '可提前入会';
+        return course.controlStatus === 1 || course.controlStatus === 2;
       },
       getButtonText(course) {
-        if (course.status === '进行中') {
+        if (course.controlStatus === 1) {
           return '进入课堂';
-        } else if (course.status === '可提前入会') {
+        } else if (course.controlStatus === 2) {
           return '提前进入';
-        } else if (course.status === '未到上课时间') {
+        } else if (course.controlStatus === 3) {
           return '未到上课时间';
         }
         return '进入课堂';
@@ -261,6 +262,9 @@
         try {
           const response = await homeApi.enterClassroom(course.id);
           if (response.data) {
+            console.log('进入课堂成功，开始建立SSE连接，scheduleId:', course.id);
+            await this.$store.dispatch('sse/initSSE', course.id);
+            console.log('SSE连接建立成功，跳转到课堂页面');
             this.$router.push(`/interaction/${course.id}`);
           } else {
             this.$message.error('进入课堂失败');
@@ -517,6 +521,16 @@
 
   .action-btn.btn-secondary:hover:not(:disabled) {
     background: #FFF3E0;
+  }
+
+  .action-btn.btn-early {
+    background: #ffffff;
+    color: #e58600;
+    border: 1px solid #e58600;
+  }
+
+  .action-btn.btn-early:hover:not(:disabled) {
+    background: #fff8f0;
   }
 
   .action-btn.btn-disabled {

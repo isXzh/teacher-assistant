@@ -17,7 +17,7 @@
     
     <div v-if="showActions" class="card-footer">
       <app-button
-        v-if="course.status === '进行中'"
+        v-if="course.controlStatus === 1"
         type="primary"
         custom-class="w-full"
         @click="handleEnterClass"
@@ -29,15 +29,22 @@
       </app-button>
       
       <app-button
-        v-else-if="course.status === '未开始'"
-        :disabled="!course.canEnterEarly"
+        v-else-if="course.controlStatus === 2"
         :custom-class="getButtonClass()"
         @click="handleEarlyEnter"
       >
-        {{ course.canEnterEarly ? '提前进入' : '未到上课时间' }}
-        <svg v-if="course.canEnterEarly" class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        提前进入
+        <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
         </svg>
+      </app-button>
+
+      <app-button
+        v-else-if="course.controlStatus === 3"
+        disabled
+        custom-class="w-full bg-gray-100 text-gray-400 cursor-not-allowed"
+      >
+        未到上课时间
       </app-button>
     </div>
   </div>
@@ -69,16 +76,10 @@ export default {
       this.$emit('enter-class', this.course.id)
     },
     handleEarlyEnter() {
-      if (this.course.canEnterEarly) {
-        this.$emit('early-enter', this.course.id)
-      }
+      this.$emit('early-enter', this.course.id)
     },
     getButtonClass() {
-      if (this.course.canEnterEarly) {
-        return 'w-full bg-white border border-[#e58600] text-[#e58600] hover:bg-[#fff8ed] active:bg-[#ffecd9]'
-      } else {
-        return 'w-full bg-gray-100 text-gray-400 cursor-not-allowed'
-      }
+      return 'w-full border border-[#e58600] text-[#e58600] hover:bg-[#fff8ed] active:bg-[#ffecd9]'
     }
   }
 }

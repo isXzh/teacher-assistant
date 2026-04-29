@@ -129,8 +129,8 @@
       <div class="content-area">
         <div class="classrooms-header">
           <h3 class="section-title">辅讲教室（远程互动）</h3>
-          <div class="header-actions">
-            <!-- <button class="simulate-button" @click="handleSimulateRaiseHand">
+          <!-- <div class="header-actions">
+            <button class="simulate-button" @click="handleSimulateRaiseHand">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
@@ -140,7 +140,7 @@
                 ></path>
               </svg>
               模拟举手
-            </button> -->
+            </button>
             <button class="refresh-button">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -151,7 +151,7 @@
                 ></path>
               </svg>
             </button>
-          </div>
+          </div> -->
         </div>
 
         <div v-if="classrooms.length === 0" class="empty-state">
@@ -209,6 +209,8 @@
         subscriberInPics: [],
         sseEventHandlers: {},
         isLandscape: false,
+        sseConnectionWatcher: null,
+        lastConnectedState: false,
       };
     },
     computed: {
@@ -230,11 +232,14 @@
       }
     },
     async mounted() {
-      await this.initSSEConnection();
+      console.log('组件mounted，开始设置SSE事件监听');
       this.setupSSEEventListeners();
+      this.setupSSEConnectionWatcher();
     },
     beforeDestroy() {
+      console.log('组件beforeDestroy，清理SSE资源');
       this.removeSSEEventListeners();
+      this.removeSSEConnectionWatcher();
       if (this.subscriberInPics && this.subscriberInPics.length > 0) {
         sessionStorage.setItem('subscriberInPics', JSON.stringify(this.subscriberInPics));
       }
@@ -245,20 +250,62 @@
     methods: {
       async initSSEConnection() {
         try {
+          console.log('开始初始化SSE连接，scheduleId:', this.scheduleId);
           await this.$store.dispatch('sse/initSSE', this.scheduleId);
+          console.log('SSE连接初始化完成');
         } catch (error) {
           console.error('SSE连接初始化失败:', error);
+          console.error('错误详情:', {
+            message: error.message,
+            stack: error.stack,
+            scheduleId: this.scheduleId,
+          });
+        }
+      },
+
+      setupSSEConnectionWatcher() {
+        if (this.sseConnectionWatcher) {
+          clearInterval(this.sseConnectionWatcher);
+        }
+
+        this.sseConnectionWatcher = setInterval(() => {
+          const currentConnectedState = this.sseConnected;
+
+          if (currentConnectedState && !this.lastConnectedState) {
+            console.log('检测到SSE连接已建立，注册事件监听器');
+            this.setupSSEEventListeners();
+
+            setTimeout(() => {
+              console.log('触发SSE事件监听器重新注册到连接');
+              this.$store.dispatch('sse/triggerEventListenersRegistration');
+            }, 100);
+          }
+
+          this.lastConnectedState = currentConnectedState;
+        }, 500);
+      },
+
+      removeSSEConnectionWatcher() {
+        if (this.sseConnectionWatcher) {
+          clearInterval(this.sseConnectionWatcher);
+          this.sseConnectionWatcher = null;
         }
       },
 
       setupSSEEventListeners() {
-        const sseClient = this.$store.getters['sse/getSseClient'];
-        if (!sseClient) {
-          console.error('SSE客户端未初始化');
+        console.log(
+          'setupSSEEventListeners被调用，当前监听器状态:',
+          Object.keys(this.sseEventHandlers).length > 0 ? '已存在' : '不存在'
+        );
+
+        if (Object.keys(this.sseEventHandlers).length > 0) {
+          console.log('SSE事件监听器已存在，跳过重复创建');
           return;
         }
 
-        sseClient.onmessage = event => {
+        console.log('开始创建SSE事件监听器handler');
+
+        this.sseEventHandlers.message = event => {
           this.handleMessage(event);
         };
 
@@ -273,36 +320,86 @@
           }
         };
 
-        this.$store.dispatch('sse/addEventListener', {
-          event: 'participants',
-          handler: this.sseEventHandlers.participants,
-        });
+        console.log('将事件监听器注册到Store');
 
-        this.$store.dispatch('sse/addEventListener', {
-          event: 'confDynamicInfo',
-          handler: this.sseEventHandlers.confDynamicInfo,
-        });
+        try {
+          this.$store.dispatch('sse/addEventListener', {
+            event: 'message',
+            handler: this.sseEventHandlers.message,
+          });
+
+          this.$store.dispatch('sse/addEventListener', {
+            event: 'participants',
+            handler: this.sseEventHandlers.participants,
+          });
+          this.$store.dispatch('sse/addEventListener', {
+            event: 'connect',
+            handler: this.connectMessage,
+          });
+          this.$store.dispatch('sse/addEventListener', {
+            event: 'confDynamicInfo',
+            handler: this.sseEventHandlers.confDynamicInfo,
+          });
+
+          console.log('所有SSE事件监听器已注册到Store');
+        } catch (error) {
+          console.error('注册SSE事件监听器到Store失败:', error);
+        }
+      },
+      connectMessage() {
+        console.log('connectMessage被调用====================');
+      },
+      getReadyStateText(state) {
+        switch (state) {
+          case 0:
+            return 'CONNECTING (连接中)';
+          case 1:
+            return 'OPEN (已连接)';
+          case 2:
+            return 'CLOSED (已关闭)';
+          default:
+            return `UNKNOWN (${state})`;
+        }
       },
 
       removeSSEEventListeners() {
-        this.$store.dispatch('sse/removeEventListener', {
-          event: 'participants',
-          handler: this.sseEventHandlers.participants,
-        });
+        if (this.sseEventHandlers.message) {
+          this.$store.dispatch('sse/removeEventListener', {
+            event: 'message',
+            handler: this.sseEventHandlers.message,
+          });
+        }
 
-        this.$store.dispatch('sse/removeEventListener', {
-          event: 'confDynamicInfo',
-          handler: this.sseEventHandlers.confDynamicInfo,
-        });
+        if (this.sseEventHandlers.participants) {
+          this.$store.dispatch('sse/removeEventListener', {
+            event: 'participants',
+            handler: this.sseEventHandlers.participants,
+          });
+        }
+
+        if (this.sseEventHandlers.confDynamicInfo) {
+          this.$store.dispatch('sse/removeEventListener', {
+            event: 'confDynamicInfo',
+            handler: this.sseEventHandlers.confDynamicInfo,
+          });
+        }
+
+        if (this.sseEventHandlers.connect) {
+          this.$store.dispatch('sse/removeEventListener', {
+            event: 'connect',
+            handler: this.sseEventHandlers.connect,
+          });
+        }
 
         this.sseEventHandlers = {};
       },
 
       handleMessage(event) {
         try {
+          console.log('收到SSE消息事件:', event);
           const data = JSON.parse(event.data);
           this.messages.push(data);
-          console.log('message', data);
+          console.log('message事件处理完成，数据:', data);
         } catch (error) {
           console.error('解析SSE消息失败:', error);
         }
@@ -310,6 +407,7 @@
 
       handleParticipants(event) {
         try {
+          console.log('收到participants事件:', event);
           const data = JSON.parse(event.data);
           console.log('participants update===============:', data);
 
@@ -853,7 +951,7 @@
       },
       handleToggleLandscape() {
         this.isLandscape = !this.isLandscape;
-        
+
         if (this.isLandscape) {
           this.enterLandscapeMode();
         } else {
@@ -865,12 +963,12 @@
           if (screen.orientation && screen.orientation.lock) {
             await screen.orientation.lock('landscape');
           }
-          
+
           document.body.classList.add('landscape-mode');
           this.$message.success('已切换至横屏模式');
         } catch (error) {
           console.error('横屏切换失败:', error);
-          
+
           if (error.name === 'NotSupportedError') {
             this.$message.warning('请允许全屏权限以使用横屏模式');
           } else {
@@ -883,7 +981,7 @@
           if (screen.orientation && screen.orientation.unlock) {
             screen.orientation.unlock();
           }
-          
+
           document.body.classList.remove('landscape-mode');
           this.$message.success('已切换至竖屏模式');
         } catch (error) {
@@ -1169,12 +1267,12 @@
   }
 
   .classrooms-grid {
-    /* display: grid;
+    display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 20px; */
-    display: flex;
-    flex-wrap: wrap;
     gap: 20px;
+    /* display: flex;
+    flex-wrap: wrap;
+    gap: 20px; */
   }
 
   .dialog-overlay {
