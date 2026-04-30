@@ -59,7 +59,7 @@
           <label class="form-label">所属组织</label>
           <input v-model="userProfile.organization" type="text" class="form-input" placeholder="请输入所属组织" />
         </div>
-        <button class="save-btn" @click="handleSaveProfile">保存修改</button>
+        <!-- <button class="save-btn" @click="handleSaveProfile">保存修改</button> -->
       </div>
 
       <!-- 安全设置 -->
@@ -201,12 +201,12 @@
           { id: 'about', name: '关于' },
         ],
         userProfile: {
-          name: '张老师',
-          jobNumber: 'T20240001',
-          phone: '138****8888',
-          email: 'zhang.teacher@example.com',
-          schoolLevel: '高中',
-          organization: '兴图中学·计算机教研组',
+          name: '',
+          jobNumber: '',
+          phone: '',
+          email: '',
+          schoolLevel: '',
+          organization: '',
         },
         passwordForm: {
           oldPassword: '',
@@ -225,14 +225,40 @@
       userInfo() {
         return (
           this.$store?.getters?.['user/getUserInfo'] || {
-            name: '张老师',
-            jobNumber: 'T20240001',
-            organization: '兴图中学·计算机教研组',
+            name: this.userProfile.name || '教师',
+            jobNumber: this.userProfile.jobNumber || '',
+            organization: this.userProfile.organization || '',
           }
         );
       },
     },
+    mounted() {
+      this.fetchProfileInfo();
+    },
     methods: {
+      async fetchProfileInfo() {
+        try {
+          const res = await profile.getProfileInfo();
+          if (res && res.data) {
+            const data = res.data;
+            // 将接口返回的数据映射到组件数据中
+            this.userProfile = {
+              name: data.teacherName || '',
+              jobNumber: data.teacherCode || '',
+              phone: data.phone || '',
+              email: data.email || '',
+              schoolLevel: data.stageName || '',
+              organization: data.orgName || '',
+            };
+          }
+        } catch (error) {
+          console.error('获取个人资料失败:', error);
+          this.$message?.({
+            type: 'error',
+            message: '获取个人资料失败，请重试',
+          });
+        }
+      },
       showSuccess(message) {
         this.successMessage = message;
         this.showSuccessToast = true;

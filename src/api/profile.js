@@ -5,4 +5,8 @@ export default {
   async updatePassword(data) {
     return await http.post("/api/teacher/profile/password", data);
   },
+  // 获取个人资料
+  async getProfileInfo() {
+    return await http.get("/api/teacher/profile/info");
+  },
 };
