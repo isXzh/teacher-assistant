@@ -84,15 +84,13 @@
 <script>
   import { getCurrentDate, getCurrentWeekDay } from '@/utils/format';
   import homeApi from '@/api/home';
-  import { EventSourcePolyfill } from 'event-source-polyfill';
 
   export default {
     name: 'TodayClasses',
     data() {
       return {
         courses: [],
-        sseClient: null,
-        heartbeatTimer: null,
+        isListenerRegistered: false,
       };
     },
     computed: {
@@ -112,7 +110,10 @@
           groups[status].push(course);
         });
         return groups;
-      }
+      },
+      sseConnected() {
+        return this.$store.getters['sse/isSseConnected'];
+      },
     },
     props:{
       loading: {
@@ -120,80 +121,69 @@
         default: false,
       }
     },
-    
+
     async created() {
       await this.fetchCourses();
-      this.initSSE();
+      await this.$store.dispatch('sse/initSSE');
+      this.setupSSEConnectionWatcher();
     },
     beforeDestroy() {
-      this.closeSSE();
+      this.removeSSEConnectionWatcher();
+      this.unregisterSSEEventListener();
     },
     methods: {
-      initSSE() {
-        const token = sessionStorage.getItem('accessToken');
-        if (!token) {
-          console.error('未找到访问令牌，无法建立SSE连接');
-          return;
-        }
+        setupSSEConnectionWatcher() {
+          this.sseConnectionWatcher = setInterval(() => {
+            if (this.sseConnected && !this.isListenerRegistered) {
+              console.log('TodayClasses: 检测到SSE连接已建立，注册事件监听器');
+              this.registerSSEEventListener();
+            }
+          }, 500);
+        },
 
-        if (this.sseClient) {
-          this.closeSSE();
-        }
-
-        this.sseClient = new EventSourcePolyfill(
-          `${window.businessURL}/api/teacher/reminder/sse`,
-          {
-            headers: {
-              token: `Bearer ${token}`
-            },
-            withCredentials: false,
-            heartbeatTimeout: 60000,
-            connectionTimeout: 30000
+        removeSSEConnectionWatcher() {
+          if (this.sseConnectionWatcher) {
+            clearInterval(this.sseConnectionWatcher);
+            this.sseConnectionWatcher = null;
           }
-        );
+        },
 
-        this.sseClient.onopen = () => {
-          console.log('课程提醒SSE连接已建立');
-          this.startHeartbeat();
-        };
-
-        this.sseClient.onerror = (error) => {
-          console.error('课程提醒SSE连接错误:', error);
-          this.stopHeartbeat();
-          this.handleSSEError();
-        };
-
-        this.sseClient.addEventListener('classReminder', this.handleClassReminder);
-      },
-      startHeartbeat() {
-        this.stopHeartbeat();
-        this.heartbeatTimer = setInterval(() => {
-          if (this.sseClient && this.sseClient.readyState === 1) {
-            console.log('SSE心跳检测: 连接正常');
-          } else {
-            console.warn('SSE心跳检测: 连接异常');
-            this.stopHeartbeat();
-            this.handleSSEError();
+        registerSSEEventListener() {
+          if (this.isListenerRegistered) {
+            console.log('TodayClasses: 事件监听器已注册，跳过重复注册');
+            return;
           }
-        }, 30000);
-      },
-      stopHeartbeat() {
-        if (this.heartbeatTimer) {
-          clearInterval(this.heartbeatTimer);
-          this.heartbeatTimer = null;
-        }
-      },
-      handleSSEError() {
-        if (this.sseClient) {
-          this.sseClient.close();
-          this.sseClient = null;
-        }
-        console.log('5秒后尝试重连SSE...');
-        setTimeout(() => {
-          this.initSSE();
-        }, 5000);
-      },
-      handleClassReminder(event) {
+
+          try {
+            this.$store.dispatch('sse/addEventListener', {
+              event: 'classReminder',
+              handler: this.handleClassReminder,
+            });
+            this.isListenerRegistered = true;
+            console.log('TodayClasses: 事件监听器注册成功');
+          } catch (error) {
+            console.error('TodayClasses: 注册事件监听器失败:', error);
+          }
+        },
+
+        unregisterSSEEventListener() {
+          if (!this.isListenerRegistered) {
+            return;
+          }
+
+          try {
+            this.$store.dispatch('sse/removeEventListener', {
+              event: 'classReminder',
+              handler: this.handleClassReminder,
+            });
+            this.isListenerRegistered = false;
+            console.log('TodayClasses: 事件监听器已移除');
+          } catch (error) {
+            console.error('TodayClasses: 移除事件监听器失败:', error);
+          }
+        },
+
+        handleClassReminder(event) {
         try {
           const data = JSON.parse(event.data);
           console.log('收到课程提醒:', data);
@@ -202,19 +192,9 @@
           callback: action => {
           }
         });
-          // this.$message.warning(data.message || '即将开始的课程提醒');
           this.fetchCourses();
         } catch (error) {
           console.error('解析课程提醒数据失败:', error);
-        }
-      },
-      closeSSE() {
-        this.stopHeartbeat();
-        if (this.sseClient) {
-          this.sseClient.removeEventListener('classReminder', this.handleClassReminder);
-          this.sseClient.close();
-          this.sseClient = null;
-          console.log('课程提醒SSE连接已关闭');
         }
       },
       handleRefresh() {

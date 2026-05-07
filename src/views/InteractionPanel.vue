@@ -211,6 +211,7 @@
         isLandscape: false,
         sseConnectionWatcher: null,
         lastConnectedState: false,
+        listenersRegistered: false,
       };
     },
     computed: {
@@ -229,6 +230,19 @@
         } catch (error) {
           console.error('恢复subscriberInPics失败:', error);
         }
+      }
+
+      const currentScheduleId = this.$store.getters['sse/getScheduleId'];
+      const sseConnected = this.$store.getters['sse/isSseConnected'];
+
+      console.log('InteractionPanel created - 当前scheduleId:', currentScheduleId, '目标scheduleId:', this.scheduleId, '连接状态:', sseConnected);
+
+      if (currentScheduleId !== this.scheduleId || !sseConnected) {
+        console.log('InteractionPanel: 需要初始化SSE连接');
+        await this.initSSEConnection();
+      } else {
+        console.log('InteractionPanel: SSE连接已存在且scheduleId匹配，跳过初始化');
+        this.listenersRegistered = false;
       }
     },
     async mounted() {
@@ -272,13 +286,14 @@
           const currentConnectedState = this.sseConnected;
 
           if (currentConnectedState && !this.lastConnectedState) {
-            console.log('检测到SSE连接已建立，注册事件监听器');
-            this.setupSSEEventListeners();
+            console.log('InteractionPanel: 检测到SSE连接已建立');
 
-            setTimeout(() => {
-              console.log('触发SSE事件监听器重新注册到连接');
+            if (this.listenersRegistered) {
+              console.log('InteractionPanel: 事件监听器已注册，触发重新注册到连接');
               this.$store.dispatch('sse/triggerEventListenersRegistration');
-            }, 100);
+            } else {
+              console.log('InteractionPanel: 事件监听器未注册，等待注册完成');
+            }
           }
 
           this.lastConnectedState = currentConnectedState;
@@ -299,8 +314,27 @@
         );
 
         if (Object.keys(this.sseEventHandlers).length > 0) {
-          console.log('SSE事件监听器已存在，跳过重复创建');
-          return;
+          console.log('检测到旧的监听器，强制重新创建');
+
+          this.$store.dispatch('sse/removeEventListener', {
+            event: 'message',
+            handler: this.sseEventHandlers.message,
+          });
+
+          this.$store.dispatch('sse/removeEventListener', {
+            event: 'participants',
+            handler: this.sseEventHandlers.participants,
+          });
+
+          this.$store.dispatch('sse/removeEventListener', {
+            event: 'connect',
+            handler: this.connectMessage,
+          });
+
+          this.$store.dispatch('sse/removeEventListener', {
+            event: 'confDynamicInfo',
+            handler: this.sseEventHandlers.confDynamicInfo,
+          });
         }
 
         console.log('开始创建SSE事件监听器handler');
@@ -341,7 +375,15 @@
             handler: this.sseEventHandlers.confDynamicInfo,
           });
 
-          console.log('所有SSE事件监听器已注册到Store');
+          console.log('所有SSE事件监听器已注册到Store，当前state中的事件监听器:', this.$store.state.sse.eventListeners);
+          this.listenersRegistered = true;
+
+          if (this.sseConnected) {
+            console.log('InteractionPanel: SSE已连接，立即触发事件监听器重新注册');
+            setTimeout(() => {
+              this.$store.dispatch('sse/triggerEventListenersRegistration');
+            }, 100);
+          }
         } catch (error) {
           console.error('注册SSE事件监听器到Store失败:', error);
         }

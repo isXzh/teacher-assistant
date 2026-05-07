@@ -92,7 +92,10 @@ export default {
         return Promise.resolve();
       }
 
-      if (sseClient) {
+      if (sseClient && state.scheduleId !== scheduleId) {
+        console.log('scheduleId变化，关闭现有SSE连接，建立新连接', { oldScheduleId: state.scheduleId, newScheduleId: scheduleId });
+        dispatch('closeSSE', { clearListeners: false });
+      } else if (sseClient) {
         console.log('关闭现有SSE连接，建立新连接');
         dispatch('closeSSE');
       }
@@ -104,7 +107,7 @@ export default {
       return new Promise((resolve, reject) => {
         try {
           const client = new EventSourcePolyfill(
-            `${window.businessURL}/api/teacher/meeting/control/${scheduleId}/sse`,
+            `${window.businessURL}/api/teacher/sse`,
             {
               headers: {
                 token: `Bearer ${token}`,
@@ -258,10 +261,10 @@ export default {
       }
     },
 
-    closeSSE({ commit, dispatch }) {
+    closeSSE({ commit, dispatch }, { clearListeners = true } = {}) {
       dispatch('stopHeartbeat');
       if (sseClient) {
-        console.log('关闭SSE连接');
+        console.log('关闭SSE连接，是否清空监听器:', clearListeners);
         sseClient.close();
         sseClient = null;
       }
@@ -269,21 +272,23 @@ export default {
       commit('SET_SCHEDULE_ID', null);
       commit('SET_CONNECTION_QUALITY', 0);
       commit('RESET_MESSAGE_COUNT');
-      commit('RESET_EVENT_LISTENERS');
+      if (clearListeners) {
+        commit('RESET_EVENT_LISTENERS');
+      }
     },
 
     addEventListener({ commit }, { event, handler }) {
-      if (sseClient) {
+      if (sseClient && sseClient.readyState === 1) {
         try {
           sseClient.addEventListener(event, handler);
           console.log(`已注册SSE事件监听器: ${event} (readyState: ${sseClient.readyState})`);
         } catch (error) {
           console.error(`注册SSE事件监听器失败 (${event}):`, error);
-          throw error;
         }
+      } else if (sseClient) {
+        console.warn(`SSE连接尚未建立 (readyState: ${sseClient.readyState})，事件监听器已暂存: ${event}`);
       } else {
-        console.warn(`SSE客户端未初始化，无法注册事件监听器: ${event}`);
-        throw new Error('SSE客户端未初始化');
+        console.warn(`SSE客户端未初始化，事件监听器已暂存: ${event}`);
       }
       commit('ADD_EVENT_LISTENER', { event, handler });
     },
