@@ -31,7 +31,6 @@ export default {
       try {
         const response = await homeApi.getTodayCoures()
         const courses = response.data
-          .filter(course => course.controlStatus !== 0)
           .map(course => {
             return {
               id: course.id,
@@ -40,7 +39,7 @@ export default {
               period: course.periodName,
               classroom: course.classroomName,
               teacher: course.teacherName,
-              status: course.controlStatusName || '未开始',
+              status: course.controlStatus === 0 ? '已结束' : (course.controlStatusName || '未开始'),
               controlStatus: course.controlStatus,
               canEnterEarly: course.controlStatus === 2
             }

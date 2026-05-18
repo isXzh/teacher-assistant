@@ -37,4 +37,8 @@ export default {
   async getAuxClassrooms(scheduleId) {
     return await http.get(`/api/teacher/meeting/control/${scheduleId}/aux-classrooms`);
   },
+  // 结束所有互动
+  async endAllInteractions(scheduleId) {
+    return await http.post(`/api/teacher/meeting/control/${scheduleId}/end-interaction`);
+  },
 };

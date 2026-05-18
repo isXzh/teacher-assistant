@@ -46,6 +46,17 @@
       >
         未到上课时间
       </app-button>
+
+      <app-button
+        v-else-if="course.controlStatus === 0"
+        disabled
+        custom-class="w-full bg-gray-100 text-gray-400 cursor-not-allowed"
+      >
+        已结束
+        <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+      </app-button>
     </div>
   </div>
 </template>

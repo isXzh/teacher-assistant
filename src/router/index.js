@@ -30,6 +30,24 @@ const routes = [
       title: '互动面板',
       requiresAuth: true
     }
+  },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('@/views/Profile.vue'),
+    meta: {
+      title: '个人中心',
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/security',
+    name: 'Security',
+    component: () => import('@/views/Profile.vue'),
+    meta: {
+      title: '安全设置',
+      requiresAuth: true
+    }
   }
 ]
 
@@ -52,11 +70,6 @@ router.beforeEach((to, from, next) => {
   
   if (to.path === '/login') {
     next();
-    // if (token) {
-    //   next({ path: '/' })
-    // } else {
-    //   next()
-    // }
   } else {
     // 非登录页
     if (refreshToken) {

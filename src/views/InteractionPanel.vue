@@ -775,6 +775,40 @@
           return;
         }
 
+        const interactingClassrooms = this.classrooms.filter(c => c.isInteracting);
+        const isOnlyInteracting = interactingClassrooms.length === 1 && interactingClassrooms[0].id === classroom.id;
+
+        if (isOnlyInteracting) {
+          try {
+            const { scheduleId, mainClassroomPhone } = this;
+
+            const response = await meetingControlApi.endAllInteractions(scheduleId);
+
+            if (response.success && response.data) {
+              this.subscriberInPics = [
+                {
+                  index: 1,
+                  subscriber: [mainClassroomPhone],
+                  isAssistStream: 0,
+                },
+              ];
+              this.classrooms.forEach(c => {
+                this.$set(c, 'isInteracting', false);
+                this.$set(c, 'isRaisingHand', false);
+              });
+              this.$set(classroom, 'micEnabled', false);
+              this.$set(classroom, 'mute', 1);
+              this.$message.success('已结束互动');
+            } else {
+              throw new Error(response.message || '结束互动失败');
+            }
+          } catch (error) {
+            console.error('结束互动失败:', error);
+            this.$message.error(error.message || '结束互动失败');
+          }
+          return;
+        }
+
         try {
           const { scheduleId, subscriberInPics, mainClassroomPhone } = this;
 
@@ -914,57 +948,23 @@
         }
       },
       async handleEndAllInteractions() {
-        // 判断 subscriberInPics 的 length 是否为0，如果为0则 return
         if (this.subscriberInPics.length === 0) {
           return;
         }
-        // 如果不为0，subscriberInPics 数组只保留第一项，删除其他项
-        this.subscriberInPics = this.subscriberInPics.slice(0, 1);
 
         try {
-          const { scheduleId, subscriberInPics, mainClassroomPhone } = this;
+          const { scheduleId, mainClassroomPhone } = this;
 
-          let newSubscriberInPics;
-          if (subscriberInPics.length === 0) {
-            newSubscriberInPics = [
-              {
-                index: 1,
-                subscriber: [mainClassroomPhone],
-                isAssistStream: 0,
-              },
-            ];
-          } else {
-            newSubscriberInPics = [
-              {
-                index: 1,
-                subscriber: [mainClassroomPhone],
-                isAssistStream: 0,
-              },
-            ];
-
-            let currentIndex = 2;
-            subscriberInPics.forEach(item => {
-              const phone = item.subscriber[0];
-              if (phone !== mainClassroomPhone) {
-                newSubscriberInPics.push({
-                  index: currentIndex,
-                  subscriber: [phone],
-                  isAssistStream: 0,
-                });
-                currentIndex++;
-              }
-            });
-          }
-
-          const response = await meetingControlApi.setCustomPicture(scheduleId, {
-            manualSet: 1,
-            multiPicSaveOnly: false,
-            imageType: this.getImageType(newSubscriberInPics.length),
-            subscriberInPics: newSubscriberInPics,
-          });
+          const response = await meetingControlApi.endAllInteractions(scheduleId);
 
           if (response.success && response.data) {
-            this.subscriberInPics = newSubscriberInPics;
+            this.subscriberInPics = [
+              {
+                index: 1,
+                subscriber: [mainClassroomPhone],
+                isAssistStream: 0,
+              },
+            ];
             this.classrooms.forEach(classroom => {
               this.$set(classroom, 'isInteracting', false);
               this.$set(classroom, 'isRaisingHand', false);

@@ -7,6 +7,7 @@ import axios from 'axios';
 import VueSSE from 'vue-sse';
 import 'element-ui/lib/theme-chalk/index.css';
 import './assets/styles/index.css';
+import { loadConfig } from './utils/config';
 Vue.prototype.axios = axios;
 axios.get('/static/config.json').then(res => {
   window.businessURL = res.data.api.businessURL;
@@ -30,8 +31,17 @@ Vue.prototype.$alert = ElementUI.MessageBox.alert;
 async function bootstrap() {
   try {
     // 加载配置文件
-    const response = await axios.get('/static/config.json');
-    window.businessURL = response.data.api.businessURL;
+    // const response = await axios.get('/static/config.json');
+    // window.businessURL = response.data.api.businessURL;
+    loadConfig()
+      .then(config => {
+        window.businessURL = config.api.businessURL;
+        console.log('配置加载完成，businessURL:', window.businessURL);
+      })
+      .catch(error => {
+        console.error('配置加载失败，使用默认值:', error);
+        // 降级处理：保持默认值不变
+      });
     console.log('配置加载完成:', window.businessURL);
 
     // 配置加载完成后启动应用
@@ -43,7 +53,7 @@ async function bootstrap() {
   } catch (error) {
     console.error('配置加载失败，使用默认配置:', error);
     // 降级：使用默认配置
-    window.businessURL = 'http://120.55.72.186:8081';
+    // window.businessURL = 'http://120.55.72.186:8081';
 
     new Vue({
       router,

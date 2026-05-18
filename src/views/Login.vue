@@ -127,7 +127,7 @@
             if (response.code == 200) {
               sessionStorage.setItem('accessToken', response.data.accessToken);
               sessionStorage.setItem('refreshToken', response.data.refreshToken);
-
+              sessionStorage.setItem('userInfo', JSON.stringify(response.data));
               this.$message.success('登录成功');
               this.$router.push({ path: '/main' });
             } else {

@@ -1,184 +1,168 @@
 <template>
   <div class="profile-page">
-    <!-- 用户信息卡片 -->
-    <div class="user-card">
-      <div class="user-avatar-large">{{ userInfo.name ? userInfo.name.charAt(0) : '张' }}</div>
-      <div class="user-info">
-        <div class="user-name">{{ userInfo.name || '张老师' }}</div>
-        <div class="user-detail">
-          {{ userInfo.jobNumber || 'T20240001' }} · {{ userInfo.organization || '兴图中学·计算机教研组' }}
+    <!-- 用户头部 -->
+    <div class="user-header">
+      <div class="header-content">
+        <div class="user-avatar-large">{{ userNameFirstChar }}</div>
+        <div class="user-info">
+          <h2 class="user-name">{{ userProfile.name }}</h2>
+          <p class="user-detail">{{ userProfile.jobNumber }} · {{ userProfile.school }} · {{ userProfile.organization }}</p>
         </div>
       </div>
     </div>
 
-    <!-- 标签页 -->
-    <div class="tabs-wrapper">
-      <div class="tabs-header">
-        <div
-          v-for="tab in tabs"
-          :key="tab.id"
-          class="tab-item"
-          :class="{ active: activeTab === tab.id }"
-          @click="activeTab = tab.id"
-        >
-          {{ tab.name }}
+    <div class="page-body">
+      <!-- 标签页 -->
+      <div class="profile-tabs">
+        <div class="tabs-header">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="tab-item"
+            :class="{ active: activeTab === tab.id }"
+            @click="activeTab = tab.id"
+          >
+            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path v-if="tab.id === 'basic'" d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle v-if="tab.id === 'basic'" cx="12" cy="7" r="4"></circle>
+              <path v-if="tab.id === 'security'" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <path v-if="tab.id === 'notification'" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path v-if="tab.id === 'notification'" d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+              <circle v-if="tab.id === 'about'" cx="12" cy="12" r="10"></circle>
+              <line v-if="tab.id === 'about'" x1="12" y1="16" x2="12" y2="12"></line>
+              <line v-if="tab.id === 'about'" x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <span>{{ tab.name }}</span>
+            <div v-if="activeTab === tab.id" class="tab-indicator"></div>
+          </button>
+        </div>
+
+        <div class="tabs-content">
+          <!-- 基本资料 -->
+          <div v-if="activeTab === 'basic'" class="tab-panel">
+            <div class="section">
+              <h3 class="section-title">基本信息</h3>
+              <div class="form-grid">
+                <div class="form-field">
+                  <label class="field-label">姓名</label>
+                  <input type="text" :value="userProfile.name" class="field-input readonly" readonly />
+                </div>
+                <div class="form-field">
+                  <label class="field-label">工号</label>
+                  <input type="text" :value="userProfile.jobNumber" class="field-input readonly" readonly />
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3 class="section-title">教学信息</h3>
+              <div class="form-grid">
+                <div class="form-field">
+                  <label class="field-label">学校</label>
+                  <input type="text" :value="userProfile.school" class="field-input info" readonly />
+                </div>
+                <div class="form-field">
+                  <label class="field-label">学段</label>
+                  <input type="text" :value="userProfile.schoolLevel" class="field-input info" readonly />
+                </div>
+                <div class="form-field">
+                  <label class="field-label">学科</label>
+                  <input type="text" :value="userProfile.subject" class="field-input info" readonly />
+                </div>
+                <div class="form-field">
+                  <label class="field-label">班级</label>
+                  <input type="text" :value="userProfile.classes.join('、')" class="field-input info" readonly />
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3 class="section-title">联系方式</h3>
+              <div class="form-grid">
+                <div class="form-field">
+                  <label class="field-label">手机号</label>
+                  <input type="text" :value="userProfile.phone" class="field-input readonly" readonly />
+                </div>
+                <div class="form-field">
+                  <label class="field-label">邮箱</label>
+                  <input type="text" :value="userProfile.email" class="field-input readonly" readonly />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 安全设置 -->
+          <div v-if="activeTab === 'security'" class="tab-panel">
+            <div class="security-card">
+              <h3 class="section-title">修改密码</h3>
+              <p class="section-desc">定期修改密码可以保护账号安全</p>
+              <div class="form-stack">
+                <div class="form-field">
+                  <label class="field-label">原密码</label>
+                  <input v-model="passwordForm.oldPassword" type="password" class="field-input" placeholder="请输入原密码" />
+                </div>
+                <div class="form-field">
+                  <label class="field-label">新密码</label>
+                  <input v-model="passwordForm.newPassword" type="password" class="field-input" placeholder="请输入新密码（至少8位）" />
+                </div>
+                <div class="form-field">
+                  <label class="field-label">确认新密码</label>
+                  <input v-model="passwordForm.confirmPassword" type="password" class="field-input" placeholder="请再次输入新密码" />
+                </div>
+                <button class="submit-btn" @click="handleSavePassword">确认修改</button>
+              </div>
+            </div>
+            <div class="hint-card">
+              <svg class="hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+              </svg>
+              <div>
+                <p class="hint-title">安全提示</p>
+                <p class="hint-text">退出登录功能已移至右上角用户菜单，点击您的姓名即可访问</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 通知设置 -->
+          <div v-if="activeTab === 'notification'" class="tab-panel">
+            <div class="notification-list">
+              <div
+                v-for="item in notificationItems"
+                :key="item.key"
+                class="notification-item"
+              >
+                <div class="notification-content">
+                  <div class="notification-title">{{ item.label }}</div>
+                  <div class="notification-desc">{{ item.desc }}</div>
+                </div>
+                <div
+                  class="toggle-switch"
+                  :class="{ active: notifications[item.key] }"
+                  @click="toggleNotification(item.key)"
+                >
+                  <div class="toggle-slider"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 关于 -->
+          <div v-if="activeTab === 'about'" class="tab-panel about-panel">
+            <div class="about-content">
+              <div class="about-logo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+              </div>
+              <h3 class="about-name">兴图教学助手</h3>
+              <p class="about-desc">智慧教育云平台</p>
+              <p class="about-version">版本 1.0.0</p>
+            </div>
+          </div>
         </div>
       </div>
-
-      <!-- 基本资料 -->
-      <div v-if="activeTab === 'basic'" class="tab-panel1">
-        <div class="form-group1">
-          <label class="form-label">姓名 <span class="required">*</span></label>
-          <input v-model="userProfile.name" type="text" class="form-input" placeholder="请输入姓名" />
-        </div>
-        <div class="form-group1">
-          <label class="form-label">工号 <span class="required">*</span></label>
-          <input v-model="userProfile.jobNumber" type="text" class="form-input" placeholder="请输入工号" />
-        </div>
-        <div class="form-group1">
-          <label class="form-label">手机号 <span class="required">*</span></label>
-          <input v-model="userProfile.phone" type="tel" class="form-input" placeholder="请输入手机号" />
-        </div>
-        <div class="form-group1">
-          <label class="form-label">邮箱</label>
-          <input v-model="userProfile.email" type="email" class="form-input" placeholder="请输入邮箱" />
-        </div>
-        <div class="form-group1">
-          <label class="form-label">所属学段</label>
-          <div class="form-select-wrapper">
-            <select v-model="userProfile.schoolLevel" class="form-select">
-              <option value="">请选择</option>
-              <option value="小学">小学</option>
-              <option value="初中">初中</option>
-              <option value="高中">高中</option>
-              <option value="职业教育">职业教育</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group1">
-          <label class="form-label">所属组织</label>
-          <input v-model="userProfile.organization" type="text" class="form-input" placeholder="请输入所属组织" />
-        </div>
-        <!-- <button class="save-btn" @click="handleSaveProfile">保存修改</button> -->
-      </div>
-
-      <!-- 安全设置 -->
-      <div v-if="activeTab === 'security'" class="tab-panel">
-        <div class="security-hint">
-          <span class="security-hint-title">密码安全建议：</span>
-          <span class="security-hint-text">密码长度至少8位，建议包含大小写字母、数字和特殊字符</span>
-        </div>
-        <div class="form-group">
-          <label class="form-label">原密码 <span class="required">*</span></label>
-          <input v-model="passwordForm.oldPassword" type="password" class="form-input" placeholder="请输入原密码" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">新密码 <span class="required">*</span></label>
-          <input
-            v-model="passwordForm.newPassword"
-            type="password"
-            class="form-input"
-            placeholder="请输入新密码"
-            @input="handleNewPasswordChange"
-          />
-        </div>
-        <div class="form-group">
-          <label class="form-label">确认新密码 <span class="required">*</span></label>
-          <input
-            v-model="passwordForm.confirmPassword"
-            type="password"
-            class="form-input"
-            placeholder="请再次输入新密码"
-          />
-        </div>
-        <button class="save-btn" @click="handleSavePassword">修改密码</button>
-      </div>
-
-      <!-- 通知设置 -->
-      <div v-if="activeTab === 'notification'" class="tab-panel notification-panel">
-        <div class="notification-list">
-          <div class="notification-item">
-            <div class="notification-content">
-              <div class="notification-title">上课提醒</div>
-              <div class="notification-desc">在课程开始前10分钟发送提醒通知</div>
-            </div>
-            <div
-              class="toggle-switch"
-              :class="{ active: notifications.classReminder }"
-              @click="toggleNotification('classReminder')"
-            >
-              <div class="toggle-slider"></div>
-            </div>
-          </div>
-          <div class="notification-item">
-            <div class="notification-content">
-              <div class="notification-title">互动通知</div>
-              <div class="notification-desc">听讲教室举手申请互动时发送通知</div>
-            </div>
-            <div
-              class="toggle-switch"
-              :class="{ active: notifications.interactionNotice }"
-              @click="toggleNotification('interactionNotice')"
-            >
-              <div class="toggle-slider"></div>
-            </div>
-          </div>
-          <div class="notification-item">
-            <div class="notification-content">
-              <div class="notification-title">系统通知</div>
-              <div class="notification-desc">接收系统维护、更新等重要通知</div>
-            </div>
-            <div
-              class="toggle-switch"
-              :class="{ active: notifications.systemNotice }"
-              @click="toggleNotification('systemNotice')"
-            >
-              <div class="toggle-slider"></div>
-            </div>
-          </div>
-          <div class="notification-item">
-            <div class="notification-content">
-              <div class="notification-title">设备告警</div>
-              <div class="notification-desc">保障箱离线或设备异常时发送告警通知</div>
-            </div>
-            <div
-              class="toggle-switch"
-              :class="{ active: notifications.deviceAlert }"
-              @click="toggleNotification('deviceAlert')"
-            >
-              <div class="toggle-slider"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 关于 -->
-      <div v-if="activeTab === 'about'" class="tab-panel about-panel">
-        <div class="about-list">
-          <div class="about-item">
-            <span class="about-label">版本号</span>
-            <span class="about-value">v1.0.0</span>
-          </div>
-          <div class="about-item about-link" @click="showUserAgreement">
-            <span class="about-label">用户协议</span>
-            <span class="about-arrow">></span>
-          </div>
-          <div class="about-item about-link" @click="showPrivacyPolicy">
-            <span class="about-label">隐私政策</span>
-            <span class="about-arrow">></span>
-          </div>
-          <button class="check-update-btn" @click="checkUpdate">检查更新</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 退出登录按钮 -->
-    <button class="logout-btn" @click="handleLogout">退出登录</button>
-
-    <!-- 成功提示 -->
-    <div v-if="showSuccessToast" class="success-toast">
-      <span class="success-icon">✓</span>
-      <span>{{ successMessage }}</span>
     </div>
   </div>
 </template>
@@ -192,8 +176,6 @@
     data() {
       return {
         activeTab: 'basic',
-        showSuccessToast: false,
-        successMessage: '',
         tabs: [
           { id: 'basic', name: '基本资料' },
           { id: 'security', name: '安全设置' },
@@ -201,12 +183,15 @@
           { id: 'about', name: '关于' },
         ],
         userProfile: {
-          name: '',
-          jobNumber: '',
-          phone: '',
-          email: '',
-          schoolLevel: '',
-          organization: '',
+          name: '张老师',
+          jobNumber: 'T20240001',
+          phone: '138****8888',
+          email: 'zhang.teacher@example.com',
+          school: '兴图中学',
+          schoolLevel: '高中',
+          subject: '计算机科学',
+          classes: ['高一1班', '高一2班', '高二3班'],
+          organization: '计算机教研组',
         },
         passwordForm: {
           oldPassword: '',
@@ -219,17 +204,17 @@
           systemNotice: false,
           deviceAlert: true,
         },
+        notificationItems: [
+          { key: 'classReminder', label: '课程提醒', desc: '上课前15分钟提醒' },
+          { key: 'interactionNotice', label: '互动通知', desc: '学生互动消息通知' },
+          { key: 'systemNotice', label: '系统通知', desc: '系统更新和维护通知' },
+          { key: 'deviceAlert', label: '设备告警', desc: '设备异常状态提醒' },
+        ],
       };
     },
     computed: {
-      userInfo() {
-        return (
-          this.$store?.getters?.['user/getUserInfo'] || {
-            name: this.userProfile.name || '教师',
-            jobNumber: this.userProfile.jobNumber || '',
-            organization: this.userProfile.organization || '',
-          }
-        );
+      userNameFirstChar() {
+        return this.userProfile.name.charAt(0);
       },
     },
     mounted() {
@@ -241,105 +226,47 @@
           const res = await profile.getProfileInfo();
           if (res && res.data) {
             const data = res.data;
-            // 将接口返回的数据映射到组件数据中
             this.userProfile = {
-              name: data.teacherName || '',
-              jobNumber: data.teacherCode || '',
-              phone: data.phone || '',
-              email: data.email || '',
-              schoolLevel: data.stageName || '',
-              organization: data.orgName || '',
+              ...this.userProfile,
+              name: data.teacherName || this.userProfile.name,
+              jobNumber: data.teacherCode || this.userProfile.jobNumber,
+              phone: data.phone || this.userProfile.phone,
+              email: data.email || this.userProfile.email,
+              schoolLevel: data.stageName || this.userProfile.schoolLevel,
+              organization: data.orgName || this.userProfile.organization,
             };
           }
         } catch (error) {
           console.error('获取个人资料失败:', error);
-          this.$message?.({
-            type: 'error',
-            message: '获取个人资料失败，请重试',
-          });
         }
-      },
-      showSuccess(message) {
-        this.successMessage = message;
-        this.showSuccessToast = true;
-        setTimeout(() => {
-          this.showSuccessToast = false;
-        }, 2000);
-      },
-      handleSaveProfile() {
-        this.showSuccess('保存成功');
       },
       async handleSavePassword() {
         if (this.passwordForm.newPassword !== this.passwordForm.confirmPassword) {
-          alert('两次输入的密码不一致');
+          this.$message.error('两次输入的密码不一致');
           return;
         }
-
         try {
           await this.$confirm('是否确定修改密码?', '提示', {
             confirmButtonText: '确定',
             cancelButtonText: '取消',
             type: 'warning',
           });
-
           const res = await profile.updatePassword({
             oldPassword: this.passwordForm.oldPassword,
             newPassword: this.passwordForm.newPassword,
             confirmPassword: this.passwordForm.confirmPassword,
           });
-
-          this.showSuccess('修改成功');
-          this.passwordForm = {
-            oldPassword: '',
-            newPassword: '',
-            confirmPassword: '',
-          };
+          this.$message.success('修改成功');
+          this.passwordForm = { oldPassword: '', newPassword: '', confirmPassword: '' };
         } catch (error) {
           if (error !== 'cancel') {
             console.error('修改密码失败:', error);
-            this.$message({
-              type: 'error',
-              message: error.message || '修改密码失败，请重试',
-            });
+            this.$message.error(error.message || '修改密码失败，请重试');
           }
         }
       },
       toggleNotification(key) {
         this.notifications[key] = !this.notifications[key];
-      },
-      handleNewPasswordChange() {
-        // 可以在这里添加密码强度检查逻辑
-      },
-      showUserAgreement() {
-        alert('用户协议功能待开发');
-      },
-      showPrivacyPolicy() {
-        alert('隐私政策功能待开发');
-      },
-      checkUpdate() {
-        alert('当前已是最新版本');
-      },
-      handleLogout() {
-        this.$confirm('是否确定退出登录?', '退出登录', {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning',
-        })
-          .then(async () => {
-            try {
-              await auth.logout();
-              this.$store.dispatch('user/logout');
-              this.$router?.push('/login');
-            } catch (error) {
-              console.error('退出登录失败:', error);
-            }
-          })
-          .catch(() => {
-            this.$message({
-              type: 'info',
-              message: '已取消',
-            });
-          });
       },
     },
   };
@@ -347,209 +274,274 @@
 
 <style scoped>
   .profile-page {
-    min-height: 100vh;
-    background: #f5f7fa;
-    /* padding: 16px 650px; */
-    padding-bottom: 100px;
+    min-height: 100%;
+    background: #F5F7FA;
+    padding-bottom: 40px;
   }
 
-  /* 用户信息卡片 */
-  .user-card {
-    background: linear-gradient(135deg, #4a7bff 0%, #5a8cff 100%);
-    /* border-radius: 12px; */
-    padding: 24px;
+  /* 用户头部 */
+  .user-header {
+    background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%);
+    padding: 32px 24px;
+  }
+
+  .header-content {
+    max-width: 1200px;
+    margin: 0 auto;
     display: flex;
     align-items: center;
-    gap: 16px;
-    color: white;
-    margin-bottom: 16px;
+    gap: 20px;
   }
 
   .user-avatar-large {
-    width: 56px;
-    height: 56px;
+    width: 72px;
+    height: 72px;
     background: rgba(255, 255, 255, 0.2);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
+    color: white;
+    font-size: 28px;
     font-weight: 500;
     flex-shrink: 0;
   }
 
   .user-name {
-    font-size: 20px;
-    font-weight: 600;
-    margin-bottom: 4px;
+    font-size: 22px;
+    font-weight: 700;
+    color: white;
+    margin: 0 0 6px 0;
   }
 
   .user-detail {
     font-size: 14px;
-    opacity: 0.9;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0;
   }
 
-  /* 标签页容器 */
-  .tabs-wrapper {
+  /* 页面主体 */
+  .page-body {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px 24px;
+  }
+
+  /* 标签页 */
+  .profile-tabs {
     background: white;
-    border-radius: 12px;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    border: 1px solid #f0f0f0;
     overflow: hidden;
   }
 
-  /* 标签头部 */
   .tabs-header {
     display: flex;
     border-bottom: 1px solid #f0f0f0;
+    overflow-x: auto;
   }
 
   .tab-item {
-    flex: 1;
-    padding: 16px 8px;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 20px;
+    border: none;
+    background: transparent;
     font-size: 14px;
-    color: #666;
+    font-weight: 500;
+    color: #888;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
     position: relative;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .tab-item:hover {
+    color: #555;
   }
 
   .tab-item.active {
-    color: #4a7bff;
-    font-weight: 500;
+    color: #1E88E5;
   }
 
-  .tab-item.active::after {
-    content: '';
+  .tab-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .tab-indicator {
     position: absolute;
     bottom: 0;
-    left: 20%;
-    right: 20%;
+    left: 0;
+    right: 0;
     height: 2px;
-    background: #4a7bff;
+    background: #1E88E5;
   }
 
-  /* 标签内容面板 */
-  .tab-panel1 {
-    padding: 20px;
-    display: flex;
-    flex-wrap: wrap;
-    /* gap: 20px; */
-    justify-content: space-between;
+  .tabs-content {
+    padding: 24px;
   }
+
+  /* 内容面板 */
   .tab-panel {
-    padding: 20px;
+    animation: fadeIn 0.2s ease;
   }
-  /* 表单样式 */
-  .form-group {
-    margin-bottom: 16px;
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
-  .form-group1 {
-    margin-bottom: 16px;
-    width: 48%;
+
+  .section {
+    margin-bottom: 28px;
   }
-  .form-label {
-    display: block;
-    font-size: 14px;
+
+  .section:last-child {
+    margin-bottom: 0;
+  }
+
+  .section-title {
+    font-size: 15px;
+    font-weight: 600;
     color: #333;
-    margin-bottom: 8px;
+    margin: 0 0 16px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f0f0f0;
   }
 
-  .required {
-    color: #f44336;
+  .section-desc {
+    font-size: 13px;
+    color: #888;
+    margin: -8px 0 16px 0;
   }
 
-  .form-input,
-  .form-select {
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px 24px;
+  }
+
+  .form-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #555;
+  }
+
+  .field-input {
     width: 100%;
-    height: 44px;
-    padding: 0 12px;
+    height: 42px;
+    padding: 0 14px;
     border: 1px solid #e0e0e0;
     border-radius: 8px;
     font-size: 14px;
     color: #333;
     background: white;
     outline: none;
-    transition: border-color 0.2s;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
   }
 
-  .form-input:focus,
-  .form-select:focus {
-    border-color: #4a7bff;
+  .field-input:focus {
+    border-color: #1E88E5;
+    box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.1);
   }
 
-  .form-select-wrapper {
-    position: relative;
+  .field-input.readonly {
+    background: #f8f8f8;
+    color: #888;
   }
 
-  .form-select-wrapper::after {
-    content: '';
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 0;
-    height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 5px solid #999;
-    pointer-events: none;
+  .field-input.info {
+    background: rgba(30, 136, 229, 0.04);
+    color: #666;
+    border-color: #e8e8e8;
   }
 
-  .form-select {
-    appearance: none;
-    padding-right: 30px;
-  }
-
-  /* 保存按钮 */
-  .save-btn {
-    width: 100%;
-    height: 44px;
-    background: #4a7bff;
+  .submit-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 24px;
+    background: #1E88E5;
     color: white;
     border: none;
     border-radius: 8px;
     font-size: 14px;
-    cursor: pointer;
-    margin-top: 8px;
-    transition: background 0.2s;
-  }
-
-  .save-btn:active {
-    background: #3a6bef;
-  }
-
-  /* 安全设置 */
-  .security-hint {
-    background: #f0f5ff;
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 20px;
-    font-size: 13px;
-  }
-
-  .security-hint-title {
-    color: #4a7bff;
     font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    align-self: flex-start;
   }
 
-  .security-hint-text {
-    color: #666;
+  .submit-btn:hover {
+    background: #1565C0;
+  }
+
+  /* 安全设置卡片 */
+  .security-card {
+    background: #F8FAFC;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+
+  .hint-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: #FFF8E1;
+    border-radius: 12px;
+    border: 1px solid #FFECB3;
+  }
+
+  .hint-card .hint-icon {
+    width: 20px;
+    height: 20px;
+    color: #F9A825;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .hint-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #F57F17;
+    margin: 0 0 4px 0;
+  }
+
+  .hint-text {
+    font-size: 12px;
+    color: #F9A825;
+    margin: 0;
   }
 
   /* 通知设置 */
-  .notification-panel {
-    padding: 0;
-  }
-
   .notification-list {
-    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .notification-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px;
+    padding: 16px 0;
     border-bottom: 1px solid #f5f5f5;
   }
 
@@ -557,12 +549,9 @@
     border-bottom: none;
   }
 
-  .notification-content {
-    flex: 1;
-  }
-
   .notification-title {
     font-size: 15px;
+    font-weight: 500;
     color: #333;
     margin-bottom: 4px;
   }
@@ -572,31 +561,31 @@
     color: #999;
   }
 
-  /* 切换开关 */
   .toggle-switch {
-    width: 48px;
-    height: 28px;
+    width: 44px;
+    height: 24px;
     background: #ddd;
-    border-radius: 14px;
+    border-radius: 12px;
     position: relative;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
   }
 
   .toggle-switch.active {
-    background: #4a7bff;
+    background: #1E88E5;
   }
 
   .toggle-slider {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     background: white;
     border-radius: 50%;
     position: absolute;
     top: 2px;
     left: 2px;
-    transition: transform 0.2s;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   }
 
   .toggle-switch.active .toggle-slider {
@@ -605,104 +594,73 @@
 
   /* 关于页面 */
   .about-panel {
-    padding: 0;
+    text-align: center;
+    padding: 40px 20px;
   }
 
-  .about-list {
-    padding: 8px 0;
-  }
-
-  .about-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 20px;
-    border-bottom: 1px solid #f5f5f5;
-  }
-
-  .about-item:last-of-type {
-    border-bottom: none;
-  }
-
-  .about-label {
-    font-size: 14px;
-    color: #333;
-  }
-
-  .about-value {
-    font-size: 14px;
-    color: #999;
-  }
-
-  .about-arrow {
-    font-size: 14px;
-    color: #ccc;
-  }
-
-  .about-link {
-    cursor: pointer;
-  }
-
-  .check-update-btn {
-    width: calc(100% - 40px);
-    margin: 16px 20px;
-    height: 44px;
-    background: white;
-    color: #4a7bff;
-    border: 1px solid #4a7bff;
-    border-radius: 8px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .check-update-btn:active {
-    background: #f0f5ff;
-  }
-
-  /* 退出登录按钮 */
-  .logout-btn {
-    width: calc(100% - 32px);
-    margin: 16px;
-    height: 44px;
-    background: #ff4d4f;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-
-  .logout-btn:active {
-    background: #ff7875;
-  }
-
-  /* 成功提示 */
-  .success-toast {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.75);
-    color: white;
-    padding: 16px 32px;
-    border-radius: 8px;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    z-index: 1000;
-  }
-
-  .success-icon {
-    width: 20px;
-    height: 20px;
-    background: #52c41a;
-    border-radius: 50%;
+  .about-logo {
+    width: 64px;
+    height: 64px;
+    background: #1E88E5;
+    border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    margin: 0 auto 16px;
+    color: white;
+  }
+
+  .about-logo svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .about-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: #333;
+    margin: 0 0 6px 0;
+  }
+
+  .about-desc {
+    font-size: 14px;
+    color: #888;
+    margin: 0 0 4px 0;
+  }
+
+  .about-version {
+    font-size: 13px;
+    color: #bbb;
+    margin: 0;
+  }
+
+  /* 响应式适配 */
+  @media (max-width: 768px) {
+    .user-header {
+      padding: 24px 16px;
+    }
+
+    .header-content {
+      flex-direction: column;
+      text-align: center;
+      gap: 16px;
+    }
+
+    .page-body {
+      padding: 12px 16px;
+    }
+
+    .tabs-content {
+      padding: 16px;
+    }
+
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .tab-item {
+      padding: 12px 14px;
+      font-size: 13px;
+    }
   }
 </style>
