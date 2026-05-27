@@ -26,32 +26,36 @@
             </button>
           </div>
           <div class="status-list">
-            <!-- <div class="status-item">
+            <div class="status-item">
               <span class="status-label">连接状态</span>
               <div class="status-value online">
                 <div class="status-dot"></div>
                 <span class="status-text">在线</span>
               </div>
-            </div> -->
-            <div class="status-item">
+            </div>
+            <!-- <div class="status-item">
               <span class="status-label">实时连接</span>
               <div :class="['status-value', sseConnected ? 'online' : 'offline']">
                 <div class="status-dot"></div>
                 <span class="status-text">{{ sseConnected ? '正常' : '断开' }}</span>
               </div>
-            </div>
-            <!-- <div class="status-item">
+            </div> -->
+            <div class="status-item">
               <span class="status-label">网络质量</span>
-              <div class="status-value online">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M5 12.55a11 11 0 0111.99 9.134A11 11 0 0112.55 12.55v0a11 11 0 01-11.99-9.134A11 11 0 015.45 12.55v0z"
-                  ></path>
-                </svg>
-                <span class="status-text">优秀</span>
+              <div class="status-value">
+                <div class="signal-bars">
+                  <div
+                    v-for="i in 5"
+                    :key="i"
+                    class="signal-bar"
+                    :class="{
+                      active: i <= netRate,
+                      [`level-${netRate}`]: i <= netRate,
+                    }"
+                    :style="{ height: `${6 + (i - 1) * 4}px` }"
+                  ></div>
+                </div>
+                <span class="status-text" :class="netRateClass">{{ netRateText }}</span>
               </div>
             </div>
             <div class="status-item">
@@ -77,7 +81,7 @@
                 </svg>
                 <span class="status-text">正常</span>
               </div>
-            </div> -->
+            </div>
           </div>
         </div>
 
@@ -212,17 +216,29 @@
         sseConnectionWatcher: null,
         lastConnectedState: false,
         listenersRegistered: false,
+        netRate: 0,
+        networkQualityTimer: null,
+        isComponentDestroyed: false,
       };
     },
     computed: {
       sseConnected() {
         return this.$store.getters['sse/isSseConnected'];
       },
+      netRateText() {
+        const map = { 0: '未知', 1: '极差', 2: '较差', 3: '一般', 4: '良好', 5: '优秀' };
+        return map[this.netRate] || '未知';
+      },
+      netRateClass() {
+        const map = { 0: 'offline', 1: 'level-1', 2: 'level-2', 3: 'level-3', 4: 'online', 5: 'online' };
+        return map[this.netRate] || 'offline';
+      },
     },
     async created() {
       this.scheduleId = this.$route.params.courseId;
       await this.fetchMainClassroomPhone();
       await this.fetchRealtimeInfo();
+      await this.fetchNetworkQuality();
       const savedSubscriberInPics = sessionStorage.getItem('subscriberInPics');
       if (savedSubscriberInPics) {
         try {
@@ -235,7 +251,14 @@
       const currentScheduleId = this.$store.getters['sse/getScheduleId'];
       const sseConnected = this.$store.getters['sse/isSseConnected'];
 
-      console.log('InteractionPanel created - 当前scheduleId:', currentScheduleId, '目标scheduleId:', this.scheduleId, '连接状态:', sseConnected);
+      console.log(
+        'InteractionPanel created - 当前scheduleId:',
+        currentScheduleId,
+        '目标scheduleId:',
+        this.scheduleId,
+        '连接状态:',
+        sseConnected
+      );
 
       if (currentScheduleId !== this.scheduleId || !sseConnected) {
         console.log('InteractionPanel: 需要初始化SSE连接');
@@ -251,9 +274,14 @@
       this.setupSSEConnectionWatcher();
     },
     beforeDestroy() {
+      this.isComponentDestroyed = true;
       console.log('组件beforeDestroy，清理SSE资源');
       this.removeSSEEventListeners();
       this.removeSSEConnectionWatcher();
+      if (this.networkQualityTimer) {
+        clearTimeout(this.networkQualityTimer);
+        this.networkQualityTimer = null;
+      }
       if (this.subscriberInPics && this.subscriberInPics.length > 0) {
         sessionStorage.setItem('subscriberInPics', JSON.stringify(this.subscriberInPics));
       }
@@ -531,6 +559,25 @@
         } catch (error) {
           console.error('获取会议实时信息失败:', error);
           this.$message.error('获取会议实时信息失败');
+        }
+      },
+      async fetchNetworkQuality() {
+        if (this.isComponentDestroyed) return;
+        try {
+          const response = await meetingControlApi.getNetworkQuality(this.scheduleId);
+          if (this.isComponentDestroyed) return;
+          if (response.code === 200 && response.data) {
+            this.netRate = parseInt(response.data.netRate) || 0;
+            this.networkQualityTimer = setTimeout(() => {
+              this.fetchNetworkQuality();
+            }, 2000);
+          }
+        } catch (error) {
+          console.error('获取网络质量失败:', error);
+          if (this.isComponentDestroyed) return;
+          this.networkQualityTimer = setTimeout(() => {
+            this.fetchNetworkQuality();
+          }, 2000);
         }
       },
       processClassrooms(attendees, participants) {
@@ -1162,6 +1209,55 @@
 
   .status-value.offline .status-text {
     color: #f44336;
+    font-weight: 500;
+  }
+
+  .signal-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 22px;
+  }
+
+  .signal-bar {
+    width: 4px;
+    border-radius: 1px;
+    background: #e0e0e0;
+    transition: background 0.3s ease;
+  }
+
+  .signal-bar.active.level-1 {
+    background: #f44336;
+  }
+
+  .signal-bar.active.level-2 {
+    background: #ff9800;
+  }
+
+  .signal-bar.active.level-3 {
+    background: #ffc107;
+  }
+
+  .signal-bar.active.level-4 {
+    background: #8bc34a;
+  }
+
+  .signal-bar.active.level-5 {
+    background: #4caf50;
+  }
+
+  .status-text.level-1 {
+    color: #f44336;
+    font-weight: 500;
+  }
+
+  .status-text.level-2 {
+    color: #ff9800;
+    font-weight: 500;
+  }
+
+  .status-text.level-3 {
+    color: #ffc107;
     font-weight: 500;
   }
 

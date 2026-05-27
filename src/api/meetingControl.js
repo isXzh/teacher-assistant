@@ -37,6 +37,10 @@ export default {
   async getAuxClassrooms(scheduleId) {
     return await http.get(`/api/teacher/meeting/control/${scheduleId}/aux-classrooms`);
   },
+  // 查询会场网络质量
+  async getNetworkQuality(scheduleId) {
+    return await http.get(`/api/teacher/meeting/control/${scheduleId}/network-quality`);
+  },
   // 结束所有互动
   async endAllInteractions(scheduleId) {
     return await http.post(`/api/teacher/meeting/control/${scheduleId}/end-interaction`);
