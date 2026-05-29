@@ -1,4 +1,4 @@
-import http from "@/utils/http.js";
+import http from '@/utils/http.js';
 // 教师端-会控
 export default {
   // 单与会人禁麦/解除
@@ -40,6 +40,18 @@ export default {
   // 查询会场网络质量
   async getNetworkQuality(scheduleId) {
     return await http.get(`/api/teacher/meeting/control/${scheduleId}/network-quality`);
+  },
+  // 查询当前会场会控信息
+  async controlInfo(scheduleId, params) {
+    return await http.get(`/api/teacher/meeting/control/${scheduleId}/control-info`, params);
+  },
+  // 邀请所有未入会者
+  async inviteAbsentees(scheduleId) {
+    return await http.post(`/api/teacher/meeting/control/${scheduleId}/invite-absentees`);
+  },
+  // 邀请个人会场终端入会
+  async invitePersonal(scheduleId, params) {
+    return await http.post2(`/api/teacher/meeting/control/${scheduleId}/invite-personal`, params);
   },
   // 结束所有互动
   async endAllInteractions(scheduleId) {

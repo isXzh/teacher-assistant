@@ -14,7 +14,7 @@
         <div class="device-status-card">
           <div class="card-header">
             <h2 class="card-title">{{ mainClassroomName || '主讲教室保障箱' }}</h2>
-            <button class="refresh-button" @click="fetchRealtimeInfo">
+            <button class="refresh-button" @click="fetchControlInfo">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
@@ -59,27 +59,10 @@
               </div>
             </div>
             <div class="status-item">
-              <span class="status-label">音视频设备</span>
-              <div class="status-value online">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 1a3 3 0 013 3v7a3 3 0 01-3 3V4a3 3 0 01-3-3z"
-                  ></path>
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 4v5a2 2 0 00-2-2H7a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2z"
-                  ></path>
-                </svg>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                  <line x1="8" y1="21" x2="16" y2="21"></line>
-                </svg>
-                <span class="status-text">正常</span>
+              <span class="status-label">摄像头</span>
+              <div :class="['status-value', videoEnabled ? 'online' : 'offline']">
+                <div class="status-dot"></div>
+                <span class="status-text">{{ videoEnabled ? '开启' : '关闭' }}</span>
               </div>
             </div>
           </div>
@@ -113,6 +96,12 @@
                 </svg>
               </div>
               <span class="icon-label">结束所有互动</span>
+            </div>
+            <div class="control-icon-item" @click="handleInviteAbsentees">
+              <div class="icon-circle yaoqing">
+                <img :src="yaoqing2" alt="" />
+              </div>
+              <span class="icon-label">邀请入会</span>
             </div>
           </div>
         </div>
@@ -195,7 +184,7 @@
   import ClassroomCard from '@/components/business/ClassroomCard.vue';
   import homeApi from '@/api/home';
   import meetingControlApi from '@/api/meetingControl';
-
+  import yaoqing2 from '@/assets/images/yaoqing2.png';
   export default {
     name: 'InteractionPanel',
     components: {
@@ -204,27 +193,21 @@
     },
     data() {
       return {
+        yaoqing2,
         classrooms: [],
         showEndClassDialog: false,
         scheduleId: null,
-        messages: [],
         mainClassroomPhone: null,
         mainClassroomName: null,
         subscriberInPics: [],
-        sseEventHandlers: {},
         isLandscape: false,
-        sseConnectionWatcher: null,
-        lastConnectedState: false,
-        listenersRegistered: false,
         netRate: 0,
-        networkQualityTimer: null,
+        videoEnabled: false,
         isComponentDestroyed: false,
+        controlInfoTimer: null,
       };
     },
     computed: {
-      sseConnected() {
-        return this.$store.getters['sse/isSseConnected'];
-      },
       netRateText() {
         const map = { 0: '未知', 1: '极差', 2: '较差', 3: '一般', 4: '良好', 5: '优秀' };
         return map[this.netRate] || '未知';
@@ -237,8 +220,7 @@
     async created() {
       this.scheduleId = this.$route.params.courseId;
       await this.fetchMainClassroomPhone();
-      await this.fetchRealtimeInfo();
-      await this.fetchNetworkQuality();
+      this.startControlInfoPolling();
       const savedSubscriberInPics = sessionStorage.getItem('subscriberInPics');
       if (savedSubscriberInPics) {
         try {
@@ -247,41 +229,10 @@
           console.error('恢复subscriberInPics失败:', error);
         }
       }
-
-      const currentScheduleId = this.$store.getters['sse/getScheduleId'];
-      const sseConnected = this.$store.getters['sse/isSseConnected'];
-
-      console.log(
-        'InteractionPanel created - 当前scheduleId:',
-        currentScheduleId,
-        '目标scheduleId:',
-        this.scheduleId,
-        '连接状态:',
-        sseConnected
-      );
-
-      if (currentScheduleId !== this.scheduleId || !sseConnected) {
-        console.log('InteractionPanel: 需要初始化SSE连接');
-        await this.initSSEConnection();
-      } else {
-        console.log('InteractionPanel: SSE连接已存在且scheduleId匹配，跳过初始化');
-        this.listenersRegistered = false;
-      }
-    },
-    async mounted() {
-      console.log('组件mounted，开始设置SSE事件监听');
-      this.setupSSEEventListeners();
-      this.setupSSEConnectionWatcher();
     },
     beforeDestroy() {
       this.isComponentDestroyed = true;
-      console.log('组件beforeDestroy，清理SSE资源');
-      this.removeSSEEventListeners();
-      this.removeSSEConnectionWatcher();
-      if (this.networkQualityTimer) {
-        clearTimeout(this.networkQualityTimer);
-        this.networkQualityTimer = null;
-      }
+      this.stopControlInfoPolling();
       if (this.subscriberInPics && this.subscriberInPics.length > 0) {
         sessionStorage.setItem('subscriberInPics', JSON.stringify(this.subscriberInPics));
       }
@@ -290,246 +241,61 @@
       }
     },
     methods: {
-      async initSSEConnection() {
-        try {
-          console.log('开始初始化SSE连接，scheduleId:', this.scheduleId);
-          await this.$store.dispatch('sse/initSSE', this.scheduleId);
-          console.log('SSE连接初始化完成');
-        } catch (error) {
-          console.error('SSE连接初始化失败:', error);
-          console.error('错误详情:', {
-            message: error.message,
-            stack: error.stack,
-            scheduleId: this.scheduleId,
-          });
+      async handleInviteAbsentees() {
+        const res = await meetingControlApi.inviteAbsentees(this.scheduleId);
+      },
+      startControlInfoPolling() {
+        this.fetchControlInfo();
+        this.controlInfoTimer = setInterval(() => {
+          this.fetchControlInfo();
+        }, 1000);
+      },
+      stopControlInfoPolling() {
+        if (this.controlInfoTimer) {
+          clearInterval(this.controlInfoTimer);
+          this.controlInfoTimer = null;
         }
       },
-
-      setupSSEConnectionWatcher() {
-        if (this.sseConnectionWatcher) {
-          clearInterval(this.sseConnectionWatcher);
-        }
-
-        this.sseConnectionWatcher = setInterval(() => {
-          const currentConnectedState = this.sseConnected;
-
-          if (currentConnectedState && !this.lastConnectedState) {
-            console.log('InteractionPanel: 检测到SSE连接已建立');
-
-            if (this.listenersRegistered) {
-              console.log('InteractionPanel: 事件监听器已注册，触发重新注册到连接');
-              this.$store.dispatch('sse/triggerEventListenersRegistration');
-            } else {
-              console.log('InteractionPanel: 事件监听器未注册，等待注册完成');
+      async fetchControlInfo() {
+        if (this.isComponentDestroyed) return;
+        try {
+          const response = await meetingControlApi.controlInfo(this.scheduleId, { teachType: 1 });
+          if (this.isComponentDestroyed) return;
+          if (response.code === 200 && response.data) {
+            const { currentTerminal, attendees, interactingPhones } = response.data;
+            this.netRate = parseInt(currentTerminal.netRate) || 0;
+            this.videoEnabled = currentTerminal.video === 1;
+            if (currentTerminal.name) {
+              this.mainClassroomName = currentTerminal.name;
+            }
+            if (currentTerminal.phone) {
+              this.mainClassroomPhone = currentTerminal.phone;
+            }
+            if (attendees && Array.isArray(attendees)) {
+              const mainPhone = currentTerminal.phone;
+              const interactingPhoneList = Array.isArray(interactingPhones) ? interactingPhones : [];
+              const assistantAttendees = attendees.filter(a => a.phone !== mainPhone);
+              this.classrooms = assistantAttendees.map((attendee, index) => {
+                return {
+                  id: index + 1,
+                  name: attendee.name,
+                  teacher: attendee.name,
+                  boxStatus: attendee.inMeeting ? '在线' : '离线',
+                  clientStatus: attendee.inMeeting ? '已连接' : '断开',
+                  micEnabled: attendee.mute === 0,
+                  isInteracting: interactingPhoneList.includes(attendee.phone),
+                  isRaisingHand: attendee.hand === 1,
+                  phone: attendee.phone,
+                  pid: attendee.pid,
+                  mute: attendee.mute,
+                  hand: attendee.hand,
+                };
+              });
             }
           }
-
-          this.lastConnectedState = currentConnectedState;
-        }, 500);
-      },
-
-      removeSSEConnectionWatcher() {
-        if (this.sseConnectionWatcher) {
-          clearInterval(this.sseConnectionWatcher);
-          this.sseConnectionWatcher = null;
-        }
-      },
-
-      setupSSEEventListeners() {
-        console.log(
-          'setupSSEEventListeners被调用，当前监听器状态:',
-          Object.keys(this.sseEventHandlers).length > 0 ? '已存在' : '不存在'
-        );
-
-        if (Object.keys(this.sseEventHandlers).length > 0) {
-          console.log('检测到旧的监听器，强制重新创建');
-
-          this.$store.dispatch('sse/removeEventListener', {
-            event: 'message',
-            handler: this.sseEventHandlers.message,
-          });
-
-          this.$store.dispatch('sse/removeEventListener', {
-            event: 'participants',
-            handler: this.sseEventHandlers.participants,
-          });
-
-          this.$store.dispatch('sse/removeEventListener', {
-            event: 'connect',
-            handler: this.connectMessage,
-          });
-
-          this.$store.dispatch('sse/removeEventListener', {
-            event: 'confDynamicInfo',
-            handler: this.sseEventHandlers.confDynamicInfo,
-          });
-        }
-
-        console.log('开始创建SSE事件监听器handler');
-
-        this.sseEventHandlers.message = event => {
-          this.handleMessage(event);
-        };
-
-        this.sseEventHandlers.participants = event => this.handleParticipants(event);
-        this.sseEventHandlers.confDynamicInfo = event => {
-          const data = JSON.parse(event.data);
-          console.log('confDynamicInfo update===============:', data);
-          if (data.state === 'Destroyed') {
-            this.subscriberInPics = [];
-            sessionStorage.removeItem('subscriberInPics');
-            console.log('会议已销毁，已清空subscriberInPics');
-          }
-        };
-
-        console.log('将事件监听器注册到Store');
-
-        try {
-          this.$store.dispatch('sse/addEventListener', {
-            event: 'message',
-            handler: this.sseEventHandlers.message,
-          });
-
-          this.$store.dispatch('sse/addEventListener', {
-            event: 'participants',
-            handler: this.sseEventHandlers.participants,
-          });
-          this.$store.dispatch('sse/addEventListener', {
-            event: 'connect',
-            handler: this.connectMessage,
-          });
-          this.$store.dispatch('sse/addEventListener', {
-            event: 'confDynamicInfo',
-            handler: this.sseEventHandlers.confDynamicInfo,
-          });
-
-          console.log('所有SSE事件监听器已注册到Store，当前state中的事件监听器:', this.$store.state.sse.eventListeners);
-          this.listenersRegistered = true;
-
-          if (this.sseConnected) {
-            console.log('InteractionPanel: SSE已连接，立即触发事件监听器重新注册');
-            setTimeout(() => {
-              this.$store.dispatch('sse/triggerEventListenersRegistration');
-            }, 100);
-          }
         } catch (error) {
-          console.error('注册SSE事件监听器到Store失败:', error);
+          console.error('获取会控信息失败:', error);
         }
-      },
-      connectMessage() {
-        console.log('connectMessage被调用====================');
-      },
-      getReadyStateText(state) {
-        switch (state) {
-          case 0:
-            return 'CONNECTING (连接中)';
-          case 1:
-            return 'OPEN (已连接)';
-          case 2:
-            return 'CLOSED (已关闭)';
-          default:
-            return `UNKNOWN (${state})`;
-        }
-      },
-
-      removeSSEEventListeners() {
-        if (this.sseEventHandlers.message) {
-          this.$store.dispatch('sse/removeEventListener', {
-            event: 'message',
-            handler: this.sseEventHandlers.message,
-          });
-        }
-
-        if (this.sseEventHandlers.participants) {
-          this.$store.dispatch('sse/removeEventListener', {
-            event: 'participants',
-            handler: this.sseEventHandlers.participants,
-          });
-        }
-
-        if (this.sseEventHandlers.confDynamicInfo) {
-          this.$store.dispatch('sse/removeEventListener', {
-            event: 'confDynamicInfo',
-            handler: this.sseEventHandlers.confDynamicInfo,
-          });
-        }
-
-        if (this.sseEventHandlers.connect) {
-          this.$store.dispatch('sse/removeEventListener', {
-            event: 'connect',
-            handler: this.sseEventHandlers.connect,
-          });
-        }
-
-        this.sseEventHandlers = {};
-      },
-
-      handleMessage(event) {
-        try {
-          console.log('收到SSE消息事件:', event);
-          const data = JSON.parse(event.data);
-          this.messages.push(data);
-          console.log('message事件处理完成，数据:', data);
-        } catch (error) {
-          console.error('解析SSE消息失败:', error);
-        }
-      },
-
-      handleParticipants(event) {
-        try {
-          console.log('收到participants事件:', event);
-          const data = JSON.parse(event.data);
-          console.log('participants update===============:', data);
-
-          if (Array.isArray(data)) {
-            data.forEach(participant => {
-              const pid = participant.pid;
-              const pinfoMap = participant.pinfoMap || {};
-              const handState = pinfoMap.HAND;
-              const tel = pinfoMap.TEL;
-              const mode = participant.mode;
-
-              if (tel) {
-                const classroom = this.classrooms.find(c => c.phone === tel);
-                if (classroom) {
-                  if (handState === '1') {
-                    if (classroom.isInteracting) {
-                      meetingControlApi.setHandRaise(this.scheduleId, pid, { handsState: 0 }).catch(error => {
-                        console.error('自动放下手失败:', error);
-                      });
-                    } else {
-                      this.$set(classroom, 'isRaisingHand', true);
-                      this.$set(classroom, 'pid', pid);
-                    }
-                  } else {
-                    this.$set(classroom, 'isRaisingHand', false);
-                  }
-                }
-              }
-
-              if (mode === 0 || mode === 1) {
-                this.fetchRealtimeInfo();
-              }
-            });
-          }
-        } catch (error) {
-          console.error('解析参与者数据失败:', error);
-        }
-      },
-
-      getImageType(count) {
-        const imageTypes = {
-          1: 'Single',
-          2: 'Two',
-          3: 'Three',
-          4: 'Four',
-          5: 'Five',
-          6: 'Six',
-          7: 'Seven',
-          8: 'Eight',
-          9: 'Nine',
-        };
-        return imageTypes[count] || 'Single';
       },
       async fetchMainClassroomPhone() {
         try {
@@ -545,100 +311,19 @@
           console.error('获取今日课程失败:', error);
         }
       },
-      async fetchRealtimeInfo() {
-        try {
-          const response = await homeApi.realtimeInfo(this.scheduleId);
-          console.log('realtimeInfo', response);
-          if (response.code == 200 && response.data) {
-            const attendees = response.data.attendees || [];
-            const participants = response.data.participants || [];
-            console.log('attendees:', attendees);
-            console.log('participants:', participants);
-            this.processClassrooms(attendees, participants);
-          }
-        } catch (error) {
-          console.error('获取会议实时信息失败:', error);
-          this.$message.error('获取会议实时信息失败');
-        }
-      },
-      async fetchNetworkQuality() {
-        if (this.isComponentDestroyed) return;
-        try {
-          const response = await meetingControlApi.getNetworkQuality(this.scheduleId);
-          if (this.isComponentDestroyed) return;
-          if (response.code === 200 && response.data) {
-            this.netRate = parseInt(response.data.netRate) || 0;
-            this.networkQualityTimer = setTimeout(() => {
-              this.fetchNetworkQuality();
-            }, 2000);
-          }
-        } catch (error) {
-          console.error('获取网络质量失败:', error);
-          if (this.isComponentDestroyed) return;
-          this.networkQualityTimer = setTimeout(() => {
-            this.fetchNetworkQuality();
-          }, 2000);
-        }
-      },
-      processClassrooms(attendees, participants) {
-        const attendeeList = attendees || [];
-        const participantList = participants || [];
-
-        if (this.mainClassroomPhone) {
-          const mainClassroom = attendeeList.find(attendee => attendee.phone === this.mainClassroomPhone);
-          if (mainClassroom) {
-            this.mainClassroomName = mainClassroom.name;
-            console.log('主讲教室name:', this.mainClassroomName);
-          }
-        }
-
-        const participantPhones = participantList.map(p => p.phone);
-
-        const filteredAttendees = this.mainClassroomPhone
-          ? attendeeList.filter(attendee => attendee.phone !== this.mainClassroomPhone)
-          : attendeeList;
-
-        const interactingPhones =
-          this.subscriberInPics.length > 1 ? this.subscriberInPics.slice(1).map(item => item.subscriber[0]) : [];
-
-        this.classrooms = filteredAttendees.map((attendee, index) => {
-          const isOnline = participantPhones.includes(attendee.phone);
-          const participant = participantList.find(p => p.phone === attendee.phone);
-          const existingClassroom = this.classrooms.find(c => c.phone === attendee.phone);
-
-          const isInteracting = existingClassroom ? existingClassroom.isInteracting : false;
-          const hand = participant ? participant.hand : existingClassroom ? existingClassroom.hand : null;
-          const mute = participant ? participant.mute : existingClassroom ? existingClassroom.mute : null;
-
-          return {
-            id: index + 1,
-            name: attendee.name,
-            teacher: attendee.name,
-            boxStatus: isOnline ? '在线' : '离线',
-            clientStatus: isOnline ? '已连接' : '断开',
-            micEnabled: mute === 0 ? true : false,
-            isInteracting: isInteracting,
-            isRaisingHand: hand === 1 ? true : false,
-            phone: attendee.phone,
-            accountID: attendee.accountID,
-            userUUID: attendee.userUUID,
-            pid: participant ? participant.pid : existingClassroom ? existingClassroom.pid : null,
-            mute: mute,
-            hand: hand,
-          };
-        });
-
-        participantList.forEach(participant => {
-          const classroom = this.classrooms.find(c => c.phone === participant.phone);
-          if (classroom) {
-            this.$set(classroom, 'isInteracting', interactingPhones.includes(participant.phone));
-            this.$set(classroom, 'isRaisingHand', participant.hand === 1);
-            this.$set(classroom, 'hand', participant.hand);
-            this.$set(classroom, 'mute', participant.mute);
-            this.$set(classroom, 'micEnabled', participant.mute === 0);
-          }
-        });
-        console.log('interactingPhones======', interactingPhones);
+      getImageType(count) {
+        const imageTypes = {
+          1: 'Single',
+          2: 'Two',
+          3: 'Three',
+          4: 'Four',
+          5: 'Five',
+          6: 'Six',
+          7: 'Seven',
+          8: 'Eight',
+          9: 'Nine',
+        };
+        return imageTypes[count] || 'Single';
       },
       handleBack() {
         this.$router.push('/main');
@@ -652,7 +337,6 @@
           if (response.code === 200 && response.data) {
             this.subscriberInPics = [];
             sessionStorage.removeItem('subscriberInPics');
-            this.$store.dispatch('sse/closeSSE');
             this.$message.success('下课成功');
             this.showEndClassDialog = false;
             setTimeout(() => {
@@ -1264,7 +948,8 @@
   .control-icons {
     display: flex;
     flex-direction: row;
-    justify-content: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
     gap: 32px;
     padding: 16px 0;
   }
@@ -1310,6 +995,13 @@
   .icon-circle.secondary:hover {
     background: #1e88e5;
     box-shadow: 0 6px 16px rgba(33, 150, 243, 0.4);
+  }
+  .icon-circle.yaoqing {
+    background-image: url('@/assets/images/yaoqing1.png');
+    img {
+      max-width: 70%;
+      height: auto;
+    }
   }
 
   .icon {

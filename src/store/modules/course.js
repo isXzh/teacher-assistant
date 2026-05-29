@@ -1,67 +1,77 @@
-import Vue from 'vue'
-import homeApi from '@/api/home'
+import Vue from 'vue';
+import homeApi from '@/api/home';
 
 export default {
   namespaced: true,
   state: {
     todayCourses: [],
     currentCourse: null,
-    courseLoading: false
+    courseLoading: false,
   },
   mutations: {
     SET_TODAY_COURSES(state, courses) {
-      state.todayCourses = courses
+      state.todayCourses = courses;
     },
     SET_CURRENT_COURSE(state, course) {
-      state.currentCourse = course
+      state.currentCourse = course;
     },
     SET_COURSE_LOADING(state, loading) {
-      state.courseLoading = loading
+      state.courseLoading = loading;
     },
     UPDATE_COURSE_STATUS(state, { courseId, status }) {
-      const index = state.todayCourses.findIndex(c => c.id === courseId)
+      const index = state.todayCourses.findIndex(c => c.id === courseId);
       if (index !== -1) {
-        Vue.set(state.todayCourses[index], 'status', status)
+        Vue.set(state.todayCourses[index], 'status', status);
       }
-    }
+    },
   },
   actions: {
     async fetchTodayCourses({ commit }) {
-      commit('SET_COURSE_LOADING', true)
+      commit('SET_COURSE_LOADING', true);
       try {
-        const response = await homeApi.getTodayCoures()
-        const courses = response.data
-          .map(course => {
-            return {
-              id: course.id,
-              name: course.courseName,
-              time: course.periodTimeRange,
-              period: course.periodName,
-              classroom: course.classroomName,
-              teacher: course.teacherName,
-              status: course.controlStatus === 0 ? '已结束' : (course.controlStatusName || '未开始'),
-              controlStatus: course.controlStatus,
-              canEnterEarly: course.controlStatus === 2
-            }
-          })
-        commit('SET_TODAY_COURSES', courses)
-        return courses
+        const response = await homeApi.getTodayCoures();
+        const courses = response.data.map(course => {
+          return {
+            id: course.id,
+            name: course.courseName,
+            subjectName: course.subjectName,
+            gradeName: course.gradeName,
+            time: course.periodTimeRange,
+            period: course.periodName,
+            classroom: course.classroomName,
+            location: course.location,
+            teacher: course.teacherName,
+            courseDesc: course.courseDesc,
+            phone: course.phone,
+            status: course.controlStatus === 0 ? '已结束' : course.controlStatusName || '未开始',
+            controlStatus: course.controlStatus,
+            canEnterEarly: course.controlStatus === 2,
+            teachType: course.teachType,
+            teachTypeName: course.teachType === 1 ? '主讲' : '辅讲',
+            activityType: course.activityType,
+            lessonDate: course.lessonDate,
+            activityTypeName: course.activityTypeName,
+          };
+        });
+        commit('SET_TODAY_COURSES', courses);
+        return courses;
       } catch (error) {
-        console.error('获取今日课程失败:', error)
-        throw error
+        console.error('获取今日课程失败:', error);
+        throw error;
       } finally {
-        commit('SET_COURSE_LOADING', false)
+        commit('SET_COURSE_LOADING', false);
       }
     },
     setCurrentCourse({ commit }, course) {
-      commit('SET_CURRENT_COURSE', course)
-    }
+      commit('SET_CURRENT_COURSE', course);
+    },
   },
   getters: {
     getTodayCourses: state => state.todayCourses,
     getCurrentCourse: state => state.currentCourse,
     getCourseLoading: state => state.courseLoading,
     getInProgressCourses: state => state.todayCourses.filter(c => c.status === '进行中'),
-    getUpcomingCourses: state => state.todayCourses.filter(c => c.status === '可提前入会' || c.status === '未到上课时间')
-  }
-}
+    getUpcomingCourses: state =>
+      state.todayCourses.filter(c => c.status === '可提前入会' || c.status === '未到上课时间'),
+  },
+};

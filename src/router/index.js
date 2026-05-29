@@ -32,6 +32,15 @@ const routes = [
     }
   },
   {
+    path: '/assistant/:courseId',
+    name: 'AssistantInteractionPanel',
+    component: () => import('@/views/AssistantInteractionPanel.vue'),
+    meta: {
+      title: '辅讲课堂',
+      requiresAuth: true
+    }
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/Profile.vue'),
