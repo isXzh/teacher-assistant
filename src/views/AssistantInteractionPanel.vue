@@ -160,7 +160,7 @@
       <main class="main-area">
         <div class="main-inner">
           <div class="video-area">
-            <div class="video-gradient"></div>
+            <!-- <div class="video-gradient"></div> -->
             <div v-if="!isJoined" class="video-placeholder">
               <svg class="video-off-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
@@ -179,19 +179,22 @@
               </button>
             </div>
             <div v-else class="video-live">
-              <div class="live-avatar">
+              <!-- <div class="live-avatar">
                 <svg class="avatar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                   <circle cx="9" cy="7" r="4"></circle>
                   <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                   <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                 </svg>
-              </div>
-              <p class="live-text">正在观看直播...</p>
-              <p class="live-teacher">主讲教师：{{ mainTeacher }}</p>
+              </div> -->
+              <p class="live-text">正在上课</p>
             </div>
           </div>
-
+          <div class="zjls-box" v-if="isJoined">
+            <!-- <p class="live-teacher">主讲教师：{{ mainTeacher }}</p> -->
+            <div class="zjls-title">教师</div>
+            <div class="zjls-data">{{ mainTeacher }}</div>
+          </div>
           <div v-if="isJoined" class="controls-area">
             <button class="control-btn" :class="micEnabled ? 'control-mic-on' : 'control-mic-off'">
               <svg
@@ -232,7 +235,7 @@
             </button>
           </div>
 
-          <div class="status-info">
+          <div class="status-info" v-if="isJoined">
             <p class="mic-status">
               麦克风：<span :class="micEnabled ? 'text-green' : 'text-red'">{{
                 micEnabled ? '已开启' : '已关闭'
@@ -331,6 +334,7 @@
         participantId: null,
         netRate: 0,
         controlInfoTimer: null,
+        courseEnded: false,
       };
     },
     computed: {
@@ -372,11 +376,22 @@
         }
       },
       async fetchControlInfo() {
-        if (this.isComponentDestroyed) return;
+        if (this.isComponentDestroyed || this.courseEnded) return;
         try {
           const response = await meetingControlApi.controlInfo(this.scheduleId, { teachType: 2 });
-          if (this.isComponentDestroyed) return;
+          if (this.isComponentDestroyed || this.courseEnded) return;
           if (response.code === 200 && response.data) {
+            if (response.data.scheduleStatus === 3) {
+              this.courseEnded = true;
+              this.stopControlInfoPolling();
+              this.$alert('课程已结束', '提示', {
+                confirmButtonText: '确定',
+                callback: () => {
+                  this.$router.push('/main');
+                },
+              });
+              return;
+            }
             const { currentTerminal } = response.data;
             this.netRate = parseInt(currentTerminal.netRate) || 0;
             this.videoEnabled = currentTerminal.video === 1;
@@ -428,6 +443,7 @@
           // this.isJoined = true;
         }
       },
+      // 单人禁麦开麦
       async handleToggleMic() {
         if (!this.isJoined || !this.participantId) {
           this.$message.warning('未找到与会人ID，无法操作');
@@ -849,18 +865,22 @@
     align-items: center;
     justify-content: center;
     padding: 32px;
+    background-image: url('@/assets/images/bj.png');
   }
 
   .video-area {
-    width: 100%;
-    max-width: 640px;
+    /* width: 100%;
+    max-width: 640px; */
+    width: 564px;
+    height: 564px;
     aspect-ratio: 16 / 9;
-    background: rgba(0, 0, 0, 0.9);
-    border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    /* background: rgba(0, 0, 0, 0.9); */
+    /* border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); */
     position: relative;
     overflow: hidden;
-    margin-bottom: 24px;
+    /* margin-bottom: 24px; */
+    background-image: url('@/assets/images/txbg.png');
   }
 
   .video-gradient {
@@ -918,14 +938,21 @@
   }
 
   .video-live {
-    position: relative;
+    position: absolute;
     z-index: 1;
-    display: flex;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    /* display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    height: 100%;
-    gap: 12px;
+    justify-content: center; */
+    /* height: 100%; */
+    width: 174px;
+    height: 174px;
+    /* gap: 12px; */
+    background-image: url('@/assets/images/mrtx.png');
+    background-repeat: no-repeat;
   }
 
   .live-avatar {
@@ -937,6 +964,7 @@
     align-items: center;
     justify-content: center;
     box-shadow: 0 8px 24px rgba(30, 136, 229, 0.3);
+    /* background-image: url('@/assets/images/mrtx.png'); */
   }
 
   .avatar-icon {
@@ -946,12 +974,36 @@
   }
 
   .live-text {
-    color: rgba(255, 255, 255, 0.9);
+    color: #3771fd;
     font-size: 18px;
     font-weight: 600;
     margin: 0;
+    position: absolute;
+    bottom: -155px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    text-align: center;
   }
-
+  .zjls-box {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .zjls-title {
+    font-size: 20px;
+    color: #727fa0;
+  }
+  .zjls-data {
+    background: #ffffff;
+    border-radius: 32px;
+    padding: 8px 30px;
+    font-size: 17px;
+    font-weight: 500;
+  }
   .live-teacher {
     color: rgba(255, 255, 255, 0.6);
     font-size: 14px;
@@ -1216,5 +1268,9 @@
       max-width: 160px;
       font-size: 14px;
     }
+  }
+</style>
+<style lang="scss" scoped>
+  .video-live {
   }
 </style>
