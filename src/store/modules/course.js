@@ -49,8 +49,10 @@ export default {
             teachType: course.teachType,
             teachTypeName: course.teachType === 1 ? '主讲' : '辅讲',
             activityType: course.activityType,
+            tagNames: course.tagNames,
             lessonDate: course.lessonDate,
             activityTypeName: course.activityTypeName,
+            schoolName: course.schoolName,
           };
         });
         commit('SET_TODAY_COURSES', courses);

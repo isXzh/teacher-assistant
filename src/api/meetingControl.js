@@ -57,4 +57,12 @@ export default {
   async endAllInteractions(scheduleId) {
     return await http.post(`/api/teacher/meeting/control/${scheduleId}/end-interaction`);
   },
+  // 辅讲端退出课堂
+  async assistantExit(scheduleId, params) {
+    return await http.post2(`/api/teacher/meeting/control/${scheduleId}/assistant-exit`, params);
+  },
+  // 播放主讲共享和视频画面
+  async playShareAndVideo(scheduleId, params) {
+    return await http.post2(`/api/teacher/meeting/control/${scheduleId}/play-share-and-video`, params);
+  },
 };

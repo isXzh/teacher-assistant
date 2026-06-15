@@ -103,6 +103,12 @@
               </div>
               <span class="icon-label">邀请入会</span>
             </div>
+            <div class="control-icon-item" @click="playShareAndVideo">
+              <div class="icon-circle yaoqing">
+                <img :src="yaoqing2" alt="" />
+              </div>
+              <span class="icon-label">共享画面</span>
+            </div>
           </div>
         </div>
 
@@ -254,6 +260,18 @@
         if (this.controlInfoTimer) {
           clearInterval(this.controlInfoTimer);
           this.controlInfoTimer = null;
+        }
+      },
+      // 播放主讲共享和视频画面
+      async playShareAndVideo() {
+        const res = await meetingControlApi.playShareAndVideo(this.scheduleId, {
+          phone: this.mainClassroomPhone,
+          name: this.mainClassroomName,
+        });
+        if (res.code == 200) {
+          this.$message.success(res.message);
+        } else {
+          this.$message.error(res.message || '播放失败');
         }
       },
       async fetchControlInfo() {
@@ -679,9 +697,9 @@
         }
       },
       async handleEndAllInteractions() {
-        if (this.subscriberInPics.length === 0) {
-          return;
-        }
+        // if (this.subscriberInPics.length === 0) {
+        //   return;
+        // }
 
         try {
           const { scheduleId, mainClassroomPhone } = this;
@@ -948,7 +966,8 @@
   .control-icons {
     display: flex;
     flex-direction: row;
-    justify-content: space-between;
+    /* justify-content: space-between; */
+    justify-content: space-around;
     flex-wrap: wrap;
     gap: 32px;
     padding: 16px 0;

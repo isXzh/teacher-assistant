@@ -14,6 +14,9 @@
         </span>
         <h1 class="course-title">{{ courseName }}</h1>
       </div>
+      <div class="header-actions">
+        <button class="leave-btn" @click="handleLeaveClass">退出课堂</button>
+      </div>
     </header>
 
     <div class="panel-body">
@@ -33,6 +36,16 @@
             <div class="detail-card">
               <h3 class="detail-title">课程详情</h3>
               <div class="detail-list">
+                <div class="detail-item" v-if="schoolName">
+                  <svg class="detail-icon" viewBox="0 0 24 24" fill="none" stroke="#1E88E5" stroke-width="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                  </svg>
+                  <div class="detail-content">
+                    <span class="detail-label">学校</span>
+                    <span class="detail-value">{{ schoolName }}</span>
+                  </div>
+                </div>
                 <div class="detail-item">
                   <svg class="detail-icon" viewBox="0 0 24 24" fill="none" stroke="#1E88E5" stroke-width="2">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -159,15 +172,9 @@
 
       <main class="main-area">
         <div class="main-inner">
-          <div class="video-area">
+          <div class="video-wjr">
             <!-- <div class="video-gradient"></div> -->
             <div v-if="!isJoined" class="video-placeholder">
-              <svg class="video-off-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                <line x1="8" y1="21" x2="16" y2="21"></line>
-                <line x1="12" y1="17" x2="12" y2="21"></line>
-              </svg>
-              <p class="video-placeholder-text">尚未加入课堂</p>
               <button class="join-btn" @click="handleJoinClass">
                 <svg class="join-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -179,15 +186,7 @@
               </button>
             </div>
             <div v-else class="video-live">
-              <!-- <div class="live-avatar">
-                <svg class="avatar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="9" cy="7" r="4"></circle>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                </svg>
-              </div> -->
-              <p class="live-text">正在上课</p>
+              <!-- <p class="live-text">正在上课</p> -->
             </div>
           </div>
           <div class="zjls-box" v-if="isJoined">
@@ -196,7 +195,11 @@
             <div class="zjls-data">{{ mainTeacher }}</div>
           </div>
           <div v-if="isJoined" class="controls-area">
-            <button class="control-btn" :class="micEnabled ? 'control-mic-on' : 'control-mic-off'">
+            <button
+              class="control-btn"
+              :class="micEnabled ? 'control-mic-on' : 'control-mic-off'"
+              @click="handleMicClick"
+            >
               <svg
                 v-if="micEnabled"
                 class="control-icon"
@@ -324,6 +327,7 @@
         classroom: '',
         name: '',
         location: '',
+        schoolName: '',
         courseStatus: '进行中',
         micEnabled: false,
         videoEnabled: false,
@@ -356,6 +360,7 @@
       this.courseTime = this.$route.query.time || '';
       this.classroom = this.$route.query.classroom || '';
       this.location = this.$route.query.location || '';
+      this.schoolName = this.$route.query.schoolName || '';
       this.startControlInfoPolling();
     },
     beforeDestroy() {
@@ -411,7 +416,36 @@
         this.$router.push('/main');
       },
       handleLeaveClass() {
-        this.showLeaveDialog = true;
+        // this.showLeaveDialog = true;
+        if (!this.participantId) {
+          this.$message.error('未入会，无法退出课堂');
+          return;
+        }
+        let params = {
+          participantId: this.participantId,
+        };
+        this.$confirm('是否确认退出课堂?', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning',
+        })
+          .then(() => {
+            meetingControlApi
+              .assistantExit(this.scheduleId, params)
+              .then(res => {
+                if (res.code == 200) {
+                  this.$message.success('已退出课堂');
+                  this.$router.push('/main');
+                } else {
+                  this.$message.error(res.message || '退出失败');
+                }
+              })
+              .catch(error => {
+                console.error('退出课堂失败:', error);
+                this.$message.error('退出课堂失败');
+              });
+          })
+          .catch();
       },
       async confirmLeaveClass() {
         try {
@@ -453,8 +487,8 @@
           const isMute = this.micEnabled ? 1 : 0;
           const response = await meetingControlApi.muteParticipant(this.scheduleId, this.participantId, { isMute });
           if (response.success && response.data) {
-            this.micEnabled = !this.micEnabled;
-            this.$message.success(this.micEnabled ? '已开麦' : '已禁麦');
+            // this.micEnabled = !this.micEnabled;
+            this.$message.success('已禁麦');
           } else {
             this.$message.error(response.message || '操作失败');
           }
@@ -462,6 +496,14 @@
           console.error('禁麦/开麦操作失败:', error);
           this.$message.error('操作失败');
         }
+      },
+      // 辅讲教室麦克风点击处理
+      async handleMicClick() {
+        if (!this.micEnabled) {
+          this.$message.warning('辅讲教室只能禁麦操作');
+          return;
+        }
+        await this.handleToggleMic();
       },
       async handleRaiseHand() {
         if (!this.isJoined || !this.participantId) {
@@ -741,6 +783,7 @@
 
   .detail-value {
     color: #333;
+    font-size: 16px;
     font-weight: 500;
   }
 
@@ -872,7 +915,7 @@
     /* width: 100%;
     max-width: 640px; */
     width: 564px;
-    height: 564px;
+    height: auto;
     aspect-ratio: 16 / 9;
     /* background: rgba(0, 0, 0, 0.9); */
     /* border-radius: 16px;
@@ -881,8 +924,27 @@
     overflow: hidden;
     /* margin-bottom: 24px; */
     background-image: url('@/assets/images/txbg.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
   }
-
+  .video-wjr {
+    /* width: 100%;
+    max-width: 640px; */
+    width: 320px;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    /* background: rgba(0, 0, 0, 0.9); */
+    /* border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); */
+    position: relative;
+    /* overflow: hidden; */
+    /* margin-bottom: 24px; */
+    background-image: url('@/assets/images/wjr.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+  }
   .video-gradient {
     position: absolute;
     inset: 0;
@@ -926,6 +988,10 @@
     cursor: pointer;
     box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3);
     transition: background 0.2s ease;
+    position: absolute;
+    bottom: -50px;
+    left: 50%;
+    transform: translateX(-50%);
   }
 
   .join-btn:hover {
@@ -952,7 +1018,9 @@
     height: 174px;
     /* gap: 12px; */
     background-image: url('@/assets/images/mrtx.png');
+    background-size: contain;
     background-repeat: no-repeat;
+    background-position: center;
   }
 
   .live-avatar {
@@ -992,6 +1060,7 @@
     align-items: center;
     gap: 10px;
     margin-bottom: 20px;
+    margin-top: 20px;
   }
   .zjls-title {
     font-size: 20px;
@@ -1268,6 +1337,12 @@
       max-width: 160px;
       font-size: 14px;
     }
+  }
+  .header-actions {
+    padding: 5px 20px;
+    background-color: red;
+    border-radius: 7px;
+    color: white;
   }
 </style>
 <style lang="scss" scoped>

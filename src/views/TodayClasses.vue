@@ -357,6 +357,7 @@
                   courseDesc: course.courseDesc,
                   period: course.period,
                   teachType: course.teachType,
+                  schoolName: course.schoolName,
                 },
               });
             } else {
