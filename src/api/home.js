@@ -17,4 +17,8 @@ export default {
   async realtimeInfo(scheduleId) {
     return await http.get(`/api/teacher/meeting/control/${scheduleId}/realtime-info`);
   },
+  // 按条件查询教师排课数据
+  async getSchedules(params) {
+    return await http.post(`/api/teacher/home/schedules`, params);
+  },
 };

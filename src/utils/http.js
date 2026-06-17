@@ -14,6 +14,20 @@ const http = {
     }
     return request(config);
   },
+  get2(url, params) {
+    const config = {
+      method: 'get',
+      url: url,
+      urlType: 'businessURL',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    };
+    if (params) {
+      config.params = params;
+    }
+    return request(config);
+  },
   getFile(url, params) {
     const config = {
       method: 'get',

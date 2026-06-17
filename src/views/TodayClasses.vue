@@ -11,6 +11,15 @@
             <p class="date-text">{{ currentDate }}</p>
             <p class="week-text">{{ currentWeekDay }}</p>
           </div>
+          <button class="schedule-btn" @click="scheduleModalVisible = true">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            <span class="btn-text">查看排课</span>
+          </button>
           <button class="schedule-btn" @click="handleRefresh">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path d="M23 4v6h-6M1 20v-6h6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -173,20 +182,27 @@
         </div>
       </div>
     </div>
+
+    <ScheduleModal :visible.sync="scheduleModalVisible" />
   </div>
 </template>
 
 <script>
   import { getCurrentDate, getCurrentWeekDay } from '@/utils/format';
   import homeApi from '@/api/home';
+  import ScheduleModal from '@/components/business/ScheduleModal.vue';
 
   export default {
     name: 'TodayClasses',
+    components: {
+      ScheduleModal,
+    },
     data() {
       return {
         courses: [],
         isListenerRegistered: false,
         activeFilter: 'all',
+        scheduleModalVisible: false,
       };
     },
     computed: {
