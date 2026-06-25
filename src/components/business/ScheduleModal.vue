@@ -1,6 +1,6 @@
 <template>
   <div v-if="visible" class="schedule-modal-overlay">
-    <div class="schedule-modal-mask" @click="handleClose"></div>
+    <div class="schedule-modal-mask"></div>
     <div class="schedule-modal">
       <div class="modal-header">
         <div class="header-left">
@@ -26,12 +26,14 @@
             </button>
           </div>
         </div>
-        <button class="close-btn" @click="handleClose">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+        <div class="header-right">
+          <button class="close-btn" @click="handleClose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div class="date-nav">
@@ -48,7 +50,18 @@
             </svg>
           </button>
         </div>
-        <button class="today-btn" @click="handleToday">回到今天</button>
+        <div class="top-btn">
+          <button class="today-btn" @click="handleToday">回到今天</button>
+          <button class="my-applications-btn" @click="handleOpenApplications">
+            <svg class="my-applications-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 11H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-2"></path>
+              <rect x="9" y="2" width="6" height="6" rx="1"></rect>
+              <path d="M9 14h6"></path>
+              <path d="M9 18h6"></path>
+            </svg>
+            我的调课申请
+          </button>
+        </div>
       </div>
 
       <div class="modal-body">
@@ -92,6 +105,14 @@
                     <h4 class="course-name">{{ course.courseName }}</h4>
                   </div>
                   <div class="course-info-right">
+                    <button v-if="course.canAdjustCourse === 1" class="adjust-btn" @click="handleApplyAdjust(course)">
+                      <svg class="adjust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                      </svg>
+                      申请调课
+                    </button>
                     <span class="info-item">
                       <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -166,14 +187,23 @@
         </span>
       </div>
     </div>
+
+    <RescheduleModal :visible.sync="rescheduleVisible" :course="currentAdjustCourse" @success="handleAdjustSuccess" />
+    <RescheduleApplicationsModal :visible.sync="applicationsVisible" @withdraw-success="handleWithdrawSuccess" />
   </div>
 </template>
 
 <script>
   import homeApi from '@/api/home';
+  import RescheduleModal from './RescheduleModal.vue';
+  import RescheduleApplicationsModal from './RescheduleApplicationsModal.vue';
 
   export default {
     name: 'ScheduleModal',
+    components: {
+      RescheduleModal,
+      RescheduleApplicationsModal,
+    },
     props: {
       visible: {
         type: Boolean,
@@ -186,6 +216,9 @@
         currentDate: new Date(),
         scheduleData: [],
         loading: false,
+        rescheduleVisible: false,
+        currentAdjustCourse: null,
+        applicationsVisible: false,
       };
     },
     computed: {
@@ -227,6 +260,7 @@
           classroomName: item.location,
           mainTeacherId: item.mainTeacherId,
           mainTeacherName: item.mainTeacherName,
+          canAdjustCourse: item.canAdjustCourse,
         }));
       },
       groupedCourses() {
@@ -330,6 +364,19 @@
         this.$emit('update:visible', false);
         this.$emit('close');
       },
+      handleApplyAdjust(course) {
+        this.currentAdjustCourse = course;
+        this.rescheduleVisible = true;
+      },
+      handleAdjustSuccess() {
+        this.fetchSchedules();
+      },
+      handleOpenApplications() {
+        this.applicationsVisible = true;
+      },
+      handleWithdrawSuccess() {
+        this.fetchSchedules();
+      },
       async fetchSchedules() {
         this.loading = true;
         try {
@@ -393,6 +440,39 @@
     display: flex;
     align-items: center;
     gap: 16px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .my-applications-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1677ff;
+    background: #fff;
+    border: 1px solid #bae0ff;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .my-applications-btn:hover {
+    background: #1677ff;
+    color: #fff;
+    border-color: #1677ff;
+  }
+
+  .my-applications-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
   }
 
   .modal-title {
@@ -709,6 +789,34 @@
     flex-shrink: 0;
   }
 
+  .adjust-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #1e88e5;
+    background: #e3f2fd;
+    border: 1px solid #bbdefb;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-left: auto;
+  }
+
+  .adjust-btn:hover {
+    background: #1e88e5;
+    color: #fff;
+    border-color: #1e88e5;
+  }
+
+  .adjust-icon {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+
   .modal-footer {
     display: flex;
     align-items: center;
@@ -726,7 +834,11 @@
     align-items: center;
     gap: 6px;
   }
-
+  .top-btn {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
   .footer-icon {
     width: 16px;
     height: 16px;

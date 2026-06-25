@@ -1,6 +1,27 @@
 import { EventSourcePolyfill } from 'event-source-polyfill';
+import { Message } from 'element-ui';
+import router from '@/router';
 
 let sseClient = null;
+let isHandlingKickedOut = false;
+
+const clearAuthAndRedirect = (message = '账号已在其他地方登录，您已被迫下线') => {
+  const hasToken = sessionStorage.getItem('accessToken') || sessionStorage.getItem('refreshToken');
+
+  if (isHandlingKickedOut && !hasToken) {
+    return;
+  }
+
+  isHandlingKickedOut = true;
+  sessionStorage.removeItem('accessToken');
+  sessionStorage.removeItem('refreshToken');
+  sessionStorage.removeItem('userInfo');
+  Message.error(message);
+
+  if (router.currentRoute.path !== '/login') {
+    router.push('/login').catch(() => {});
+  }
+};
 
 export default {
   namespaced: true,
@@ -163,6 +184,21 @@ export default {
             if (event.data && event.data !== '') {
               console.log('SSE消息接收:', event.data.substring(0, 100) + (event.data.length > 100 ? '...' : ''));
             }
+          });
+
+          client.addEventListener('kickedOut', event => {
+            let message = '账号已在其他地方登录，您已被迫下线';
+            if (event.data) {
+              try {
+                const data = JSON.parse(event.data);
+                message = data.message || message;
+              } catch (error) {
+                message = event.data;
+              }
+            }
+
+            dispatch('closeSSE');
+            clearAuthAndRedirect(message);
           });
 
           sseClient = client;
