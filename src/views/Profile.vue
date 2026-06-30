@@ -168,11 +168,10 @@
 </template>
 
 <script>
-  import auth from '@/api/auth';
   import profile from '@/api/profile';
 
   export default {
-    name: 'Profile',
+    name: 'ProfilePage',
     data() {
       return {
         activeTab: 'basic',
@@ -251,7 +250,7 @@
             cancelButtonText: '取消',
             type: 'warning',
           });
-          const res = await profile.updatePassword({
+          await profile.updatePassword({
             oldPassword: this.passwordForm.oldPassword,
             newPassword: this.passwordForm.newPassword,
             confirmPassword: this.passwordForm.confirmPassword,

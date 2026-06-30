@@ -483,7 +483,7 @@
         selectedFrameIndex: -1,
         selectedFrame: null,
         segmentMode: false,
-        _segmentWatchActive: false,
+        segmentWatchActive: false,
         failedImages: {},
         activeTab: 'catalog',
         activeGuideTab: 'segments',
@@ -745,14 +745,14 @@
 
         const videoEl = this.$refs.videoPlayer;
         if (!videoEl) {
-          this._segmentWatchActive = false;
+          this.segmentWatchActive = false;
           return;
         }
 
         const onTimeUpdate = () => {
           if (!this.segmentMode) {
             videoEl.removeEventListener('timeupdate', onTimeUpdate);
-            this._segmentWatchActive = false;
+            this.segmentWatchActive = false;
             return;
           }
           const currentSeg = this.keyframes[this.selectedFrameIndex];

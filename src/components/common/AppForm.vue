@@ -103,9 +103,6 @@ export default {
     resetFields() {
       this.$refs.formRef.resetFields()
     },
-    clearValidate() {
-      this.$refs.formRef.clearValidate()
-    },
     clearValidate(props) {
       this.$refs.formRef.clearValidate(props)
     },

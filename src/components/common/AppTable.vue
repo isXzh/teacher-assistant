@@ -124,7 +124,7 @@
         :page-size="pagination.pageSize"
         :layout="pagination.layout"
         :total="pagination.total"
-        :background="pagination!background"
+        :background="pagination.background"
         :small="pagination.small"
         @size-change="handleSizeChange"
         @current-change="handleCurrentPageChange"

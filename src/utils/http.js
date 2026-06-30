@@ -127,5 +127,19 @@ const http = {
     }
     return request(config);
   },
+  delete2(url, params) {
+    const config = {
+      method: 'delete',
+      url: url,
+      urlType: 'businessURL',
+      headers: {
+        'Content-Type': 'application/json;charset=UTF-8',
+      },
+    };
+    if (params) {
+      config.data = params;
+    }
+    return request(config);
+  },
 };
 export default http;

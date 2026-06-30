@@ -11,7 +11,7 @@ function getBaseUrl() {
 
   // 方法2：从当前页面路径动态提取（兜底方案）
   const path = window.location.pathname;
-  const match = path.match(/^\/[^\/]+\//);
+  const match = path.match(/^\/[^/]+\//);
   if (match && match[0] !== '//') {
     return match[0];
   }

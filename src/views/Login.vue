@@ -95,7 +95,7 @@
   import auth from '@/api/auth';
 
   export default {
-    name: 'Login',
+    name: 'LoginPage',
     data() {
       return {
         username: '',

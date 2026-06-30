@@ -248,7 +248,7 @@
     },
     methods: {
       async handleInviteAbsentees() {
-        const res = await meetingControlApi.inviteAbsentees(this.scheduleId);
+        await meetingControlApi.inviteAbsentees(this.scheduleId);
       },
       startControlInfoPolling() {
         this.fetchControlInfo();
