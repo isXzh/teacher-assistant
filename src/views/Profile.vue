@@ -6,7 +6,9 @@
         <div class="user-avatar-large">{{ userNameFirstChar }}</div>
         <div class="user-info">
           <h2 class="user-name">{{ userProfile.name }}</h2>
-          <p class="user-detail">{{ userProfile.jobNumber }} · {{ userProfile.school }} · {{ userProfile.organization }}</p>
+          <p class="user-detail">
+            {{ userProfile.jobNumber }} · {{ userProfile.school }} · {{ userProfile.organization }}
+          </p>
         </div>
       </div>
     </div>
@@ -71,7 +73,7 @@
                 </div>
                 <div class="form-field">
                   <label class="field-label">班级</label>
-                  <input type="text" :value="userProfile.classes.join('、')" class="field-input info" readonly />
+                  <input type="text" :value="userProfile.classes" class="field-input info" readonly />
                 </div>
               </div>
             </div>
@@ -99,15 +101,30 @@
               <div class="form-stack">
                 <div class="form-field">
                   <label class="field-label">原密码</label>
-                  <input v-model="passwordForm.oldPassword" type="password" class="field-input" placeholder="请输入原密码" />
+                  <input
+                    v-model="passwordForm.oldPassword"
+                    type="password"
+                    class="field-input"
+                    placeholder="请输入原密码"
+                  />
                 </div>
                 <div class="form-field">
                   <label class="field-label">新密码</label>
-                  <input v-model="passwordForm.newPassword" type="password" class="field-input" placeholder="请输入新密码（至少8位）" />
+                  <input
+                    v-model="passwordForm.newPassword"
+                    type="password"
+                    class="field-input"
+                    placeholder="请输入新密码（至少8位）"
+                  />
                 </div>
                 <div class="form-field">
                   <label class="field-label">确认新密码</label>
-                  <input v-model="passwordForm.confirmPassword" type="password" class="field-input" placeholder="请再次输入新密码" />
+                  <input
+                    v-model="passwordForm.confirmPassword"
+                    type="password"
+                    class="field-input"
+                    placeholder="请再次输入新密码"
+                  />
                 </div>
                 <button class="submit-btn" @click="handleSavePassword">确认修改</button>
               </div>
@@ -127,11 +144,7 @@
           <!-- 通知设置 -->
           <div v-if="activeTab === 'notification'" class="tab-panel">
             <div class="notification-list">
-              <div
-                v-for="item in notificationItems"
-                :key="item.key"
-                class="notification-item"
-              >
+              <div v-for="item in notificationItems" :key="item.key" class="notification-item">
                 <div class="notification-content">
                   <div class="notification-title">{{ item.label }}</div>
                   <div class="notification-desc">{{ item.desc }}</div>
@@ -189,7 +202,7 @@
           school: '兴图中学',
           schoolLevel: '高中',
           subject: '计算机科学',
-          classes: ['高一1班', '高一2班', '高二3班'],
+          classes: '',
           organization: '计算机教研组',
         },
         passwordForm: {
@@ -233,6 +246,9 @@
               email: data.email || this.userProfile.email,
               schoolLevel: data.stageName || this.userProfile.schoolLevel,
               organization: data.orgName || this.userProfile.organization,
+              subject: data.subjectNames || this.userProfile.subject,
+              school: data.schoolName || this.userProfile.school,
+              classes: data.classNames || this.userProfile.classes,
             };
           }
         } catch (error) {
@@ -274,13 +290,13 @@
 <style scoped>
   .profile-page {
     min-height: 100%;
-    background: #F5F7FA;
+    background: #f5f7fa;
     padding-bottom: 40px;
   }
 
   /* 用户头部 */
   .user-header {
-    background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%);
+    background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
     padding: 32px 24px;
   }
 
@@ -363,7 +379,7 @@
   }
 
   .tab-item.active {
-    color: #1E88E5;
+    color: #1e88e5;
   }
 
   .tab-icon {
@@ -377,7 +393,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: #1E88E5;
+    background: #1e88e5;
   }
 
   .tabs-content {
@@ -390,8 +406,14 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .section {
@@ -456,7 +478,7 @@
   }
 
   .field-input:focus {
-    border-color: #1E88E5;
+    border-color: #1e88e5;
     box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.1);
   }
 
@@ -476,7 +498,7 @@
     align-items: center;
     justify-content: center;
     padding: 10px 24px;
-    background: #1E88E5;
+    background: #1e88e5;
     color: white;
     border: none;
     border-radius: 8px;
@@ -488,12 +510,12 @@
   }
 
   .submit-btn:hover {
-    background: #1565C0;
+    background: #1565c0;
   }
 
   /* 安全设置卡片 */
   .security-card {
-    background: #F8FAFC;
+    background: #f8fafc;
     border-radius: 12px;
     padding: 24px;
     margin-bottom: 16px;
@@ -504,15 +526,15 @@
     align-items: flex-start;
     gap: 12px;
     padding: 16px;
-    background: #FFF8E1;
+    background: #fff8e1;
     border-radius: 12px;
-    border: 1px solid #FFECB3;
+    border: 1px solid #ffecb3;
   }
 
   .hint-card .hint-icon {
     width: 20px;
     height: 20px;
-    color: #F9A825;
+    color: #f9a825;
     flex-shrink: 0;
     margin-top: 2px;
   }
@@ -520,13 +542,13 @@
   .hint-title {
     font-size: 13px;
     font-weight: 600;
-    color: #F57F17;
+    color: #f57f17;
     margin: 0 0 4px 0;
   }
 
   .hint-text {
     font-size: 12px;
-    color: #F9A825;
+    color: #f9a825;
     margin: 0;
   }
 
@@ -572,7 +594,7 @@
   }
 
   .toggle-switch.active {
-    background: #1E88E5;
+    background: #1e88e5;
   }
 
   .toggle-slider {
@@ -600,7 +622,7 @@
   .about-logo {
     width: 64px;
     height: 64px;
-    background: #1E88E5;
+    background: #1e88e5;
     border-radius: 16px;
     display: flex;
     align-items: center;

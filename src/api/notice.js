@@ -25,6 +25,7 @@ export default {
   async unreadCount() {
     return await http.get('/api/teacher/notice/unread-count');
   },
+  // 批量删除本人通知消息
   async deleteByIds(ids) {
     return await http.delete2('/api/teacher/notice/batch', ids);
   },
